@@ -617,12 +617,13 @@ hanya jadwalnya. Tidak ada berkas di repo ini yang perlu diubah untuk itu.
 - `GOOGLE_SERVICE_ACCOUNT_JSON` adalah **kredensial penulis** untuk setiap
   spreadsheet yang dibagikan ke service account itu. Simpan sebagai secret di
   GitHub (Settings → Secrets and variables → Actions), jangan pernah di repo.
-- **Dua berkas di repo ini sengaja kosong (0 byte):** `.env` dan
-  `.secrets/service-account.json`. Keduanya hanya penanda susunan berkas. Karena
-  sudah terlacak git, `.gitignore` tidak lagi melindungi dua path itu — isi
-  aslinya tinggal di komputer dan **tidak boleh** ditempel ke sana lalu di-commit;
-  repo ini publik. Berkas kosong diperlakukan sebagai "belum diisi", jadi pesan
-  galatnya tetap menjelaskan ke mana kuncinya harus diletakkan.
+- **Dua berkas di repo ini cuma penanda, bukan kredensial:** `.env` berisi teks
+  contoh dan `.secrets/service-account.json` berisi `{}`. Keduanya ada supaya
+  susunan berkasnya terlihat. Karena sudah terlacak git, `.gitignore` tidak lagi
+  melindungi dua path itu — isi aslinya tinggal di komputer dan **tidak boleh**
+  ditempel ke sana lalu di-commit; repo ini publik. Berkas penanda yang belum
+  diisi ditolak sebagai "belum diisi", jadi pesan galatnya tetap menunjukkan
+  lokasi kunci yang dicari.
 - Kalau nanti yang menjalankan pengawas adalah client, arah yang lebih aman tetap
   `--auth oauth` di komputernya sendiri (bagian 11.2): kunci penulis tidak perlu
   berpindah tangan.

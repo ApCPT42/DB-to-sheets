@@ -198,17 +198,23 @@ DEFAULT_OAUTH_TOKEN_PATH = PROJECT_DIR / ".secrets" / "oauth-token.json"
 
 
 def is_filled(path: Path) -> bool:
-    """True kalau berkasnya ada dan isinya tidak kosong.
+    """True kalau berkasnya ada dan isinya bukan penanda kosong.
 
-    Repo ini ikut memuat `.env` dan `.secrets/service-account.json` sebagai
-    penanda kosong supaya susunan berkasnya terlihat. Berkas kosong seperti itu
-    diperlakukan sama dengan berkas yang tidak ada, supaya yang muncul adalah
-    petunjuk meletakkan kunci, bukan galat JSON yang membingungkan.
+    Repo ini ikut memuat `.env` (teks contoh) dan `.secrets/service-account.json`
+    (isi `{}`) hanya supaya susunan berkasnya terlihat. Keduanya adalah penanda,
+    bukan kredensial, jadi diperlakukan sama dengan berkas yang tidak ada supaya
+    yang muncul adalah petunjuk meletakkan kunci, bukan galat JSON yang
+    membingungkan.
     """
     try:
-        return path.is_file() and path.stat().st_size > 0
+        if not path.is_file():
+            return False
+
+        isi = path.read_text(encoding="utf-8", errors="replace").strip()
     except OSError:
         return False
+
+    return bool(isi) and isi != "{}"
 
 # Format angka. Google Sheets memakai sintaks pola sendiri; "Rp" dalam tanda
 # kutip diperlakukan sebagai teks, sehingga tampil sebagai Rp 141.000.
@@ -326,9 +332,10 @@ def credentials_path() -> Path:
 
         if not is_filled(path):
             raise ExportError(
-                f"GOOGLE_SERVICE_ACCOUNT_FILE menunjuk ke berkas yang masih kosong:\n"
+                f"GOOGLE_SERVICE_ACCOUNT_FILE menunjuk ke berkas yang belum diisi:\n"
                 f"  {path}\n"
-                "  Isi berkas itu dengan kunci JSON dari service account."
+                "  Berkas kosong atau berisi `{}` belum memuat kunci apa pun;\n"
+                "  isi dengan kunci JSON dari service account."
             )
 
         return path
@@ -341,8 +348,8 @@ def credentials_path() -> Path:
 
     raise ExportError(
         "Berkas service account Google tidak ditemukan. Dicari di:\n"
-        f"{dicoba}\n"
-        "  Berkas kosong di lokasi itu juga dianggap belum diisi.\n"
+        f"{dicoba}\n"        "  Berkas kosong atau berisi `{}` di lokasi itu juga dianggap belum\n"
+        "  diisi - jadi jangan heran kalau berkasnya ada tapi tetap muncul pesan ini.\n"
         "  Cara membuatnya ada di GOOGLE_SHEETS_EXPORT.md, langkah 1-3.\n"
         "  Setelah berkasnya ada, letakkan di salah satu lokasi di atas, atau\n"
         "  isi GOOGLE_SERVICE_ACCOUNT_FILE di .env dengan path lengkapnya."
@@ -441,7 +448,7 @@ def oauth_client_path() -> Path:
 
         if not is_filled(path):
             raise ExportError(
-                f"GOOGLE_OAUTH_CLIENT_FILE menunjuk ke berkas yang masih kosong:\n"
+                f"GOOGLE_OAUTH_CLIENT_FILE menunjuk ke berkas yang belum diisi:\n"
                 f"  {path}"
             )
 

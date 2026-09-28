@@ -25,7 +25,7 @@ hanya proses kecil ini; POS tetap berjalan seperti sekarang.
 | `GOOGLE_SHEETS_EXPORT.md` | Panduan lengkap: penyiapan Google, tombol client, mode client, menjalankan di cloud |
 | `.github/workflows/refresh-sheets.yml` | Pengawas terjadwal di GitHub Actions — melayani tombol Kontrol tanpa kartu kredit |
 | `.github/workflows/keepalive.yml` | Dua commit kosong sebulan, supaya GitHub tidak mematikan jadwalnya |
-| `.env`, `.secrets/` | Konfigurasi dan kredensial — **tidak pernah masuk git** |
+| `.env`, `.secrets/` | Konfigurasi dan kredensial. Di repo keduanya hanya penanda; **isinya tidak pernah masuk git** |
 
 ## Mulai dari nol di mesin baru
 
