@@ -89,13 +89,17 @@ WIB = timezone(timedelta(hours=7), "WIB")
 # - keduanya data referensi yang tidak berubah setiap hari;
 # - `worker.pin` berisi hash bcrypt (kredensial), dan `item.cost_amount`
 #   termasuk data terlarang menurut aturan repo.
+#
+# `transaction_daily_sequence` juga tidak ada di sini. Tidak ada satu pun kode
+# yang membacanya — dulu ditandai tabel yatim di ERD — dan pemilik sudah
+# memutuskan tabelnya dibuang. Mengekspornya hanya menghasilkan tab kosong,
+# jadi ia dilewatkan tanpa menunggu tabelnya benar-benar dihapus.
 TABLES: dict[str, str] = {
     "transactions": "transaction_time, transaction_id",
     "transaction_detail": "sync_id, item_name, variant",
     "payment_proof": "uploaded_at, proof_id",
     "device": "device_code",
     "device_transaction_sequence": "device_id",
-    "transaction_daily_sequence": "transaction_date",
 }
 
 # --- Tab Kontrol: satu-satunya bagian yang disentuh client -------------------
@@ -208,12 +212,13 @@ MONEY_COLUMNS = {
     "discount",
 }
 
-NUMBER_COLUMNS = {"quantity", "byte_size", "next_sequence", "last_sequence"}
+NUMBER_COLUMNS = {"quantity", "byte_size", "next_sequence"}
 
 # Ukuran grid minimum tiap tab. Google menolak membekukan baris kalau seluruh
 # baris yang terlihat dibekukan, dan itu terjadi pada tabel yang sedang kosong
-# (mis. transaction_daily_sequence dengan nol baris). Grid yang lega juga
-# membuat tab tetap enak dipakai walau datanya sedikit.
+# (mis. transaction_daily_sequence yang dulu selalu nol baris; sekarang tabel
+# apa pun yang kebetulan kosong). Grid yang lega juga membuat tab tetap enak
+# dipakai walau datanya sedikit.
 MIN_GRID_ROWS = 20
 MIN_GRID_COLS = 4
 
@@ -1065,7 +1070,7 @@ def print_summary(ringkasan: list[tuple[str, int, int, str]], dry_run: bool) -> 
 def check_database_access(url: str) -> None:
     """Buktikan `DATABASE_URL` bisa menyambung, lalu laporkan hak aksesnya.
 
-    Dua hal yang diperiksa: pengguna database memang bisa membaca keenam tabel
+    Dua hal yang diperiksa: pengguna database memang bisa membaca kelima tabel
     (mode client memakai pengguna read-only yang berbeda dari pengguna backend),
     dan pengguna itu tidak punya hak tulis ke tabel ekspor.
     """

@@ -45,9 +45,11 @@ daftar tab di spreadsheet tujuan — tanpa menulis apa pun. Sesudahnya pilihan
 ## Yang sengaja tidak diekspor
 
 `item` (2917 baris, memuat `cost_amount` yang tidak boleh dibaca client) dan
-`worker` (memuat hash PIN). Hanya enam tabel dinamis yang disalin:
-`transactions`, `transaction_detail`, `payment_proof`, `device`,
-`device_transaction_sequence`, `transaction_daily_sequence`.
+`worker` (memuat hash PIN). Hanya lima tabel dinamis yang disalin:
+`transactions`, `transaction_detail`, `payment_proof`, `device`, dan
+`device_transaction_sequence`. Tabel `transaction_daily_sequence` — sisa desain
+nomor nota harian yang tidak dibaca kode mana pun — juga dilewatkan sejak
+2026-09-28; memasukkannya kembali ke daftar akan menghasilkan tab kosong lagi.
 
 ## Tiga cara menjalankannya
 

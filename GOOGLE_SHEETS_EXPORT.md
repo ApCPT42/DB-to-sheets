@@ -16,12 +16,13 @@ kredensial database yang bisa menulis; itu yang dijelaskan di bagian 11.
 
 **Status: sudah dijalankan sungguhan.** Ekspor pertama berhasil ke spreadsheet
 `Shadow DB` (`1kB02M_4asD38-7Qna6N9cSws5EHpP3VglXLw2nrHC0A`) pada 2026-09-28:
-enam tab data terisi, tab `Kontrol` dibuat beserta kotak centangnya, tab bawaan
-`Sheet1` dihapus, header tebal dan dibekukan, dan kolom uang berformat `Rp`.
-Lebar kolom sudah menyesuaikan isi (lihat bagian 3). Alur tombol client juga
-sudah dicoba sungguhan: mengcentang `Kontrol!B3` membuat pengawas mengosongkan
-kotak itu, menjalankan ekspor, lalu mengisi status
-`Selesai. 6 tab diperbarui, total 37 baris.`, waktu, dan ringkasan per tabel.
+enam tab data terisi (sejak `transaction_daily_sequence` tidak lagi diekspor,
+angkanya menjadi lima — lihat bagian 2), tab `Kontrol` dibuat beserta kotak
+centangnya, tab bawaan `Sheet1` dihapus, header tebal dan dibekukan, dan kolom
+uang berformat `Rp`. Lebar kolom sudah menyesuaikan isi (lihat bagian 3). Alur
+tombol client juga sudah dicoba sungguhan: mengcentang `Kontrol!B3` membuat
+pengawas mengosongkan kotak itu, menjalankan ekspor, lalu mengisi status,
+waktu, dan ringkasan per tabel.
 
 ---
 
@@ -53,11 +54,19 @@ Ada dua model, dan keduanya memakai kode yang sama:
 | `payment_proof` | metadata bukti transfer | ya |
 | `device` | daftar device terdaftar | ya |
 | `device_transaction_sequence` | posisi nomor nota per device | ya |
-| `transaction_daily_sequence` | jatah nomor per tanggal | ya |
+| `transaction_daily_sequence` | sisa desain nomor nota harian, tidak dipakai kode mana pun | **tidak** |
 | `item` | 2917 master barang | **tidak** |
 | `worker` | 2 baris karyawan | **tidak** |
 
-Dua tabel terakhir dikecualikan karena isinya, bukan karena kepraktisan:
+`transaction_daily_sequence` sengaja **tidak** diekspor sejak 2026-09-28: nomor
+nota yang berlaku sekarang dibagikan per device lewat
+`device_transaction_sequence`, dan tabel itu—bersama kolom `last_sequence` di
+dalamnya—tidak pernah dibaca kode mana pun. Selama tabelnya masih ada di
+database, mengekspornya hanya menghasilkan satu tab kosong. Tab lamanya di
+spreadsheet harus dihapus sekali dengan tangan; alat ini hanya tidak lagi
+menyentuhnya.
+
+`item` dan `worker` dikecualikan karena isinya, bukan karena kepraktisan:
 `worker.pin` berisi hash kredensial (keamanannya bergantung pada kekuatan PIN
 enam digit saja), dan `item.cost_amount` termasuk data terlarang menurut aturan
 repo — harga pokok dan margin tidak boleh keluar dari server. Keduanya juga data
@@ -227,8 +236,8 @@ A15   Data diambil dari database pada saat permintaan dilayani, bukan salinan la
 
 **Cara kerjanya.** Pengawas memeriksa `B3` setiap 60 detik. Begitu kotaknya
 dicentang, ia langsung mengosongkannya kembali (supaya kegagalan tidak
-terulang terus), menulis status "Sedang memproses", menjalankan ekspor keenam
-tab, lalu menulis status, waktu, dan ringkasan baris. Kotak yang sudah kosong itu
+terulang terus), menulis status "Sedang memproses", menjalankan ekspor kelima
+tab data, lalu menulis status, waktu, dan ringkasan baris. Kotak yang sudah kosong itu
 siap dicentang lagi kapan pun client mau.
 
 **Yang dilakukan pengelola supaya ini hidup.** Jalankan `.bat` pilihan **4** dan
@@ -265,7 +274,7 @@ tidak perlu diatur oleh alat ini.
 
 ## 7. Hasilnya
 
-Satu spreadsheet, tujuh tab:
+Satu spreadsheet, enam tab:
 
 ```
 transactions                    <- satu tab per tabel
@@ -273,11 +282,15 @@ transaction_detail
 payment_proof
 device
 device_transaction_sequence
-transaction_daily_sequence
 Kontrol                          <- tombol dan status permintaan
 ```
 
 Tab bawaan `Sheet1` dihapus otomatis, tetapi hanya kalau memang masih kosong.
+Tab `transaction_daily_sequence` dari ekspor-ekspor sebelumnya **tidak** ikut
+terhapus — alat ini tidak pernah menghapus tab yang tidak ia kelola, supaya
+catatan yang client tempelkan di sebuah tab tidak hilang tanpa sengaja. Kalau
+tab itu masih ada, hapus sekali lewat menu klik kanan → *Delete* di Google
+Sheets.
 
 ## 8. Yang client belum bisa lihat dari sini
 
@@ -338,7 +351,7 @@ database **read-only**. Dasarnya: isi database ini memang data milik client.
 Konsekuensi yang disadari dan diterima: pengguna read-only itu bisa membaca
 **seluruh tabel yang diberikan haknya** — kalau hak bacanya diberikan ke semua
 tabel, termasuk `item.cost_amount` dan hash PIN di `worker`. Karena itu langkah
-11.1 di bawah sebaiknya dibatasi ke enam tabel yang memang diekspor.
+11.1 di bawah sebaiknya dibatasi ke lima tabel yang memang diekspor.
 
 Dengan mode ini **komputer pengelola tidak perlu menyala**. Yang perlu hidup
 adalah komputer yang menjalankan `.bat`, dan itu bisa komputer client sendiri.
@@ -354,9 +367,9 @@ create role pos_pembaca login password '<password-panjang>';
 grant connect on database "DBengkulu" to pos_pembaca;
 grant usage on schema public to pos_pembaca;
 
--- Varian yang disarankan: hanya enam tabel yang memang diekspor.
+-- Varian yang disarankan: hanya lima tabel yang memang diekspor.
 grant select on transactions, transaction_detail, payment_proof,
-  device, device_transaction_sequence, transaction_daily_sequence
+  device, device_transaction_sequence
   to pos_pembaca;
 
 -- Varian lain: seluruh isi database. Pilih ini hanya kalau memang dikehendaki,
@@ -459,7 +472,7 @@ lewat cron atau Task Scheduler Linux).
   mereka lakukan adalah menghapus berkasnya, karena pemiliknya akun pengelola.
 - Client **bisa** membaca tabel yang diberikan haknya di luar alat ini (mis.
   lewat DB client apa pun). Batasnya ada di `GRANT`, bukan di alat ini — karena
-  itu batasi ke enam tabel di 11.1.
+  itu batasi ke lima tabel di 11.1.
 
 ## 12. Menjalankan pengawas di cloud (Northflank, gratis)
 
