@@ -11,9 +11,9 @@ frontend, Django, dan seluruh migrasinya tidak ada di sini dan tidak dibutuhkan
 untuk menjalankan ekspor. Yang dibutuhkan hanya dua hal: akses **baca** ke
 database, dan kredensial Google untuk spreadsheet tujuan.
 
-Pemisahan ini juga yang membuat pengawasnya bisa diletakkan di host yang selalu
-menyala (cloud) **tanpa ikut membawa server POS ke sana**. Yang naik ke cloud
-hanya proses kecil ini; POS tetap berjalan seperti sekarang.
+Pemisahan ini juga yang membuat seluruh foldernya bisa diserahkan ke client atau
+dipindahkan ke mesin lain **tanpa ikut membawa server POS**. Yang berpindah hanya
+proses kecil ini; POS tetap berjalan seperti sekarang.
 
 ## Isi repo
 
@@ -21,10 +21,8 @@ hanya proses kecil ini; POS tetap berjalan seperti sekarang.
 | --- | --- |
 | `tools/export_to_google_sheets.py` | Seluruh logikanya: baca database → tulis spreadsheet |
 | `tools/requirements-export.txt` | Semua dependensinya (`gspread`, `google-auth`, `psycopg`, `python-dotenv`) |
-| `Export ke Google Sheets.bat` | Peluncur Windows: menu 1 ekspor, 2 uji, 3 periksa, 4 pengawas |
-| `GOOGLE_SHEETS_EXPORT.md` | Panduan lengkap: penyiapan Google, tombol client, mode client, menjalankan di cloud |
-| `.github/workflows/refresh-sheets.yml` | Pengawas terjadwal di GitHub Actions — melayani tombol Kontrol tanpa kartu kredit |
-| `.github/workflows/keepalive.yml` | Dua commit kosong sebulan, supaya GitHub tidak mematikan jadwalnya |
+| `Export ke Google Sheets.bat` | Peluncur Windows: menu 1 ekspor, 2 uji, 3 periksa |
+| `GOOGLE_SHEETS_EXPORT.md` | Panduan lengkap: penyiapan Google, mode client, menjalankan berkala |
 | `.env`, `.secrets/` | Konfigurasi dan kredensial. Di repo keduanya hanya penanda; **isinya tidak pernah masuk git** |
 
 ## Mulai dari nol di mesin baru
@@ -54,31 +52,32 @@ daftar tab di spreadsheet tujuan — tanpa menulis apa pun. Sesudahnya pilihan
 nomor nota harian yang tidak dibaca kode mana pun — juga dilewatkan sejak
 2026-09-28; memasukkannya kembali ke daftar akan menghasilkan tab kosong lagi.
 
-## Tiga cara menjalankannya
+## Cara menjalankannya
 
 1. **Sekali jalan** — menu **1**, atau langsung:
    `venv\Scripts\python.exe tools\export_to_google_sheets.py`
-2. **Pengawas tombol** — menu **4** membiarkan jendela terbuka dan memantau
-   kotak centang di tab `Kontrol`; client cukup mencentangnya di spreadsheet.
-3. **Terjadwal di GitHub Actions** — cara yang berjalan tanpa komputer siapa pun
-   menyala dan **tanpa kartu kredit**. Workflow-nya sudah ada di repo ini; yang
-   perlu diisi hanya tiga rahasia di Settings → Secrets and variables → Actions,
-   lalu client mencentang seperti biasa. Jeda pelayanan 5–15 menit.
+2. **Terjadwal di komputer sendiri** — daftarkan perintah di atas ke Task
+   Scheduler (Windows) atau cron (Linux); resepnya ada di bagian 12 panduan.
+   Untuk jadwal otomatis jangan pakai `.bat`-nya, karena ia berhenti menunggu
+   tombol ditekan di akhir.
 
-Hampir semua platform yang menjalankan proses selalu-nyala gratis (Northflank,
-Koyeb, Fly.io, Oracle, Google Cloud, AWS) meminta metode pembayaran, jadi jalur
-GitHub Actions inilah yang dipakai. **Jalur kontainer sudah dihapus** pada
-2026-09-28 — `Dockerfile`, `.dockerignore`, dan langkah Northflank-nya dibuang
-karena tidak satu pun host selalu-nyala gratis bisa dipakai tanpa kartu;
-berkasnya masih bisa diambil dari riwayat git kalau nanti kartu sudah siap. Pengawas ini hanya *keluar* menghubungi
-Google dan Aiven, jadi tidak perlu menerima kunjungan dari luar — dan itu yang
-membuat pola terjadwal cukup.
+Setiap kali ekspor selesai, tab `device` diberi stempel waktu jalan di sel `D1` —
+itu penanda kapan data terakhir disegarkan.
 
-Dua cara masuk Google yang didukung: `--auth service-account` (bawaan; **dipakai
-sekarang**, memakai berkas kunci JSON yang ikut dikirim ke client) dan
-`--auth oauth` (client masuk dengan akun Google-nya sendiri, jadi tidak ada kunci
-penulis yang berpindah tangan — jalur pengganti kalau kunci itu nanti ingin
-ditarik kembali).
+Dua jalur yang pernah ada sudah dipensiunkan pada 2026-09-28, dan berkasnya tidak
+ada lagi di repo ini:
+
+- **Tombol di tab `Kontrol`** beserta pengawas `--watch`. Karena ekspor kini
+dijalankan manual, tidak ada lagi yang perlu menunggu centangan; tab `Kontrol`
+yang masih tersisa di spreadsheet boleh dihapus.
+- **Cloud.** `Dockerfile` dan langkah Northflank dibuang karena tidak satu pun
+host selalu-nyala gratis bisa dipakai tanpa kartu kredit, dan workflow GitHub
+Actions dibuang bersama tombolnya. Keduanya masih bisa diambil dari riwayat git
+kalau nanti diperlukan lagi.
+
+Dua cara masuk Google yang didukung: `--auth service-account` (bawaan; memakai
+berkas kunci JSON) dan `--auth oauth` (masuk dengan akun Google sendiri, sehingga
+tidak ada kunci penulis yang berpindah tangan).
 
 ## Penyerahan ke client
 
@@ -95,9 +94,10 @@ terbaca lewat pengguna read-only, dan alat ini sendiri hanya menjalankan
 yang dibagikan ke service account tersebut — jadi jangan membagikan spreadsheet
 lain ke email itu, dan cabut kuncinya kalau client berhenti memakainya.
 
-Di komputer client: pilihan **3** untuk memeriksa, pilihan **1** untuk ekspor
-sekali jalan, pilihan **4** untuk memantau tombol. Daftarkan pilihan 4 di Task
-Scheduler dengan pemicu *At log on* supaya nyala sendiri; selama komputer client
-hidup, jalur cloud di bagian 12 panduan tidak diperlukan.
+Di komputer client: pilihan **3** untuk memeriksa, lalu pilihan **1** setiap kali
+client ingin data terbaru. Kalau ingin berjalan sendiri, jadwalkan pilihan 1
+lewat Task Scheduler seperti di bagian 12 panduan — tidak ada tombol di
+spreadsheet yang perlu dilayani, jadi tidak ada proses yang harus dibiarkan
+menyala.
 
 Dokumentasi lengkapnya ada di [`GOOGLE_SHEETS_EXPORT.md`](GOOGLE_SHEETS_EXPORT.md).

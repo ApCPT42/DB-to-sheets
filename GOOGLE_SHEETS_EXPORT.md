@@ -5,46 +5,43 @@ Google, masing-masing ke tabnya sendiri, dan dijalankan lewat
 `Export ke Google Sheets.bat`.
 
 Repo ini **berdiri sendiri, terpisah dari repo POS**: aplikasi POS tidak ikut
-berjalan, tidak ikut di-deploy ke cloud, dan tidak perlu ada di komputer yang
-menjalankan ekspor. Ketika nanti pengawasnya diletakkan di cloud, yang naik ke
-sana hanyalah program ini — server POS tetap berjalan seperti sekarang.
+berjalan dan tidak perlu ada di komputer yang menjalankan ekspor, sehingga
+seluruh foldernya bisa diserahkan ke client atau dipindahkan ke mesin lain tanpa
+ikut membawa server POS.
 
 Alasan alat ini ada: client tidak perlu masuk ke console database, tetapi tetap
-perlu melihat data penjualan — dan kadang perlu meminta data terbaru tanpa
-menunggu pemilik. Sejak 2026-09-28 program ini **diserahkan ke client** untuk
-dijalankan di komputernya sendiri, bersama berkas kunci Google-nya; akses
-database yang diserahkan tetap read-only. Rinciannya di bagian 11.
+perlu melihat data penjualan — dan kadang perlu data terbaru tanpa menunggu
+pemilik. Sejak 2026-09-28 program ini **diserahkan ke client** untuk dijalankan
+di komputernya sendiri, bersama berkas kunci Google-nya; akses database yang
+diserahkan tetap read-only. Rinciannya di bagian 11.
 
-**Status: sudah dijalankan sungguhan.** Ekspor pertama berhasil ke spreadsheet
-`Shadow DB` (`1kB02M_4asD38-7Qna6N9cSws5EHpP3VglXLw2nrHC0A`) pada 2026-09-28:
-enam tab data terisi (sejak `transaction_daily_sequence` tidak lagi diekspor,
-angkanya menjadi lima — lihat bagian 2), tab `Kontrol` dibuat beserta kotak
-centangnya, tab bawaan `Sheet1` dihapus, header tebal dan dibekukan, dan kolom
-uang berformat `Rp`. Lebar kolom sudah menyesuaikan isi (lihat bagian 3). Alur
-tombol client juga sudah dicoba sungguhan: mengcentang `Kontrol!B3` membuat
-pengawas mengosongkan kotak itu, menjalankan ekspor, lalu mengisi status,
-waktu, dan ringkasan per tabel.
+**Status: sudah dijalankan sungguhan.** Ekspor berjalan ke spreadsheet `Shadow DB`
+(`1kB02M_4asD38-7Qna6N9cSws5EHpP3VglXLw2nrHC0A`) sejak 2026-09-28: lima tab data
+terisi (lihat bagian 2), tab bawaan `Sheet1` dihapus, header tebal dan
+dibekukan, kolom uang berformat `Rp`, dan lebar kolom menyesuaikan isi (bagian
+3). Tab `device` juga diberi stempel waktu jalan di sel `D1` — bagian 7.
+
+Tab `Kontrol` beserta tombol "minta data terbaru" **sudah dipensiunkan**
+(2026-09-28): alat ini kini hanya berjalan kalau ada yang menjalankannya, jadi
+tidak ada lagi pengawas yang membaca centangan. Tab `Kontrol` yang masih tersisa
+di spreadsheet boleh dihapus dengan tangan — alat ini tidak lagi membuat atau
+menyentuhnya.
 
 ---
 
-## 1. Dua peran
+## 1. Siapa yang menjalankannya, dan dengan kredensial apa
 
-| | Pemilik POS | Client |
-| --- | --- | --- |
-| `DATABASE_URL` | ada, di `.env` akar repo ini | tidak ada di model tombol; **ada dan read-only** di mode client (bagian 11) |
-| Kredensial Google | berkas kunci service account di disk mesin pengelola | tidak perlu di model tombol; di mode client, login akun Google sendiri |
-| Menjalankan `.bat` | ya | tidak di model tombol; **ya** di mode client |
-| Akses ke spreadsheet | pemilik berkas | dibagikan sebagai **Editor**, untuk mencentang tombol |
-| Yang client lakukan | — | mencentang satu kotak di tab `Kontrol`, atau menjalankan ekspor sendiri (bagian 11) |
+Alat ini dijalankan **manual**: satu orang, di satu komputer, dengan dua
+kredensial di tangannya.
 
-Ada dua model, dan keduanya memakai kode yang sama:
+| | Isinya |
+| --- | --- |
+| `DATABASE_URL` | koneksi PostgreSQL, di `.env` akar repo ini. Sebaiknya pengguna **read-only** (bagian 11.1) supaya ekspor tidak mungkin mengubah data POS |
+| Kredensial Google | berkas kunci service account di `.secrets\service-account.json` (bagian 4.3), atau `--auth oauth` kalau kunci itu tidak ingin disimpan di mesin tersebut |
+| Yang dikerjakan | klik dua kali `Export ke Google Sheets.bat`, pilih **1** |
 
-1. **Model tombol (bawaan).** Client tidak memegang kredensial apa pun. Permintaan
-   mereka berupa centang di spreadsheet, dan pengawas di mesin pengelola yang
-   mengerjakannya. Syaratnya mesin itu menyala — lihat bagian 6.
-2. **Mode client.** Client memegang `DATABASE_URL` read-only dan menjalankan
-   ekspor sendiri di komputernya, memakai login akun Google-nya sendiri. Mesin
-   pengelola tidak perlu ikut hidup. Langkahnya ada di bagian 11.
+Kalau yang menjalankannya adalah komputer client, langkah lengkapnya ada di
+bagian 11 — termasuk apa saja yang perlu diserahkan ke sana.
 
 ## 2. Yang diekspor dan yang sengaja tidak
 
@@ -96,8 +93,7 @@ referensi yang tidak berubah harian.
   ditambah 18 piksel supaya huruf terakhir tidak menempel garis kolom; kolom yang
   sudah lapang (di atas 220 piksel, mis. kolom catatan) dibiarkan apa adanya.
   Contoh hasil sungguhan di tab `transactions`: `107, 81, 143, 101, 126, 125,
-  118, 101, 125, 251` piksel untuk sepuluh kolomnya, dan tab `Kontrol`
-  `526, 735, 100`.
+  118, 101, 125, 251` piksel untuk sepuluh kolomnya.
 - **Kalau perapian tampilan gagal, data tetap tersimpan.** Penulisan data dan
   perapian adalah dua permintaan terpisah, dan kegagalan penambahan lebar kolom
   hanya dicatat sebagai catatan — bukan alasan untuk menggagalkan ekspor.
@@ -161,12 +157,9 @@ GOOGLE_SPREADSHEET_ID=https://docs.google.com/spreadsheets/d/<ID>/edit
 # Isi dengan email client kalau Anda ingin alat ini yang membagikannya.
 # GOOGLE_SHEETS_SHARE_WITH=client@example.com
 
-# Opsional: jeda pemeriksaan tombol oleh pengawas, dalam detik. Bawaan 60,
-# minimal 10.
-# GOOGLE_SHEETS_WATCH_INTERVAL=60
-
 # Opsional: cara masuk Google. Bawaan service-account (berkas kunci JSON).
-# Di komputer client isi dengan oauth, lihat bagian 11.2.
+# Isi dengan oauth kalau kunci itu tidak ingin disimpan di mesin ini; lihat
+# bagian 11.2.
 # GOOGLE_AUTH_MODE=oauth
 ```
 
@@ -179,7 +172,6 @@ Klik dua kali `Export ke Google Sheets.bat`, lalu pilih:
 | `1` | Ekspor sekarang — mengganti isi setiap tab |
 | `2` | Uji tanpa menulis (dry run) — membaca database dan menampilkan rencananya |
 | `3` | Periksa kredensial — cek kunci Google, sambungan database + hak aksesnya, spreadsheet tujuan, dan daftar tab |
-| `4` | Pengawas permintaan — melayani tombol client (bagian 6), biarkan jendelanya terbuka |
 
 Tanpa menu, argumennya bisa langsung diberikan:
 
@@ -187,26 +179,22 @@ Tanpa menu, argumennya bisa langsung diberikan:
 "Export ke Google Sheets.bat" 3
 "Export ke Google Sheets.bat" 1 --only transactions
 "Export ke Google Sheets.bat" 2
-"Export ke Google Sheets.bat" 4 --interval 30
 "Export ke Google Sheets.bat" 3 --auth oauth
 ```
 
-Argumen `--auth oauth` membuat skrip masuk memakai akun Google Anda sendiri
-(bukan kunci service account) — itulah yang dipakai di komputer client, lihat
-bagian 11.2.
+Argumen `--auth oauth` membuat skrip masuk memakai akun Google Anda sendiri,
+bukan kunci service account — lihat bagian 11.2. Itu berlaku untuk semua pilihan
+di atas.
 
-Host yang berbasis jadwal (runner CI, cron, Task Scheduler) memanggil skripnya
-langsung,
-tanpa menu, dengan mode sekali-jalan:
+Penjadwal (Windows Task Scheduler, cron) memanggil skripnya langsung, tanpa menu:
 
 ```bat
-venv\Scripts\python.exe tools\export_to_google_sheets.py --if-requested
+venv\Scripts\python.exe tools\export_to_google_sheets.py
 ```
 
-Mode itu memeriksa kotak di tab Kontrol satu kali: kalau dicentang ia mengekspor
-lalu keluar, kalau tidak ia keluar tanpa menyentuh Google Sheets. Di host
-terjadwal, konfigurasinya boleh datang dari variabel lingkungan saja tanpa berkas
-`.env` — lihat bagian 12.
+Konfigurasinya boleh datang dari variabel lingkungan saja tanpa berkas `.env`.
+Bedanya dengan memakai `.bat`: skripnya keluar sendiri tanpa menunggu tombol
+ditekan, sehingga cocok untuk jadwal — lihat bagian 12.
 
 Urutan yang disarankan pada kali pertama: **3** dulu (memastikan kunci dan
 spreadsheet benar), lalu **2** (melihat data yang akan dikirim tanpa menyentuh
@@ -217,56 +205,23 @@ Kalau `gspread` belum ada, skrip memasangnya sendiri dari
 dibutuhkan ekspor — `psycopg` dan `python-dotenv` sekaligus — sehingga repo ini
 tidak bergantung pada `requirements.txt` backend POS.
 
-## 6. Tombol untuk client
+## 6. Kalau ada yang ingin data terbaru
 
-Client diberi akses **Editor** ke spreadsheet ini, dan satu-satunya hal yang
-perlu mereka sentuh adalah kotak centang di tab **`Kontrol`**:
+Dulu client bisa mencentang kotak di tab `Kontrol`, dan pengawas di mesin lain
+yang mengerjakannya. Cara itu **sudah dipensiunkan** (2026-09-28): ekspor
+sekarang hanya berjalan kalau ada yang menjalankannya.
 
-```
-A1  Kontrol ekspor data POS
-A3  Minta data terbaru        B3  <- kotak centang, dicentang client
-A4  Status terakhir           B4  <- diisi pengawas
-A5  Waktu permintaan diproses B5  <- diisi pengawas
-A6  Ringkasan data terakhir   B6  <- diisi pengawas
-A8  Cara pakai
-A9    1. Centang kotak di sel B3.
-A10   2. Tunggu. Status dan Waktu terisi sendiri, biasanya di bawah satu menit.
-A11   3. Isi tab lain tergantikan dengan data terbaru dari database.
-A14   Permintaan dilayani otomatis oleh pengawas ekspor. Kalau pengawasnya sedang tidak berjalan, centangan baru diproses setelah pengawas dinyalakan lagi.
-A15   Data diambil dari database pada saat permintaan dilayani, bukan salinan lama.
-```
+- **Anda sendiri:** klik dua kali `.bat`, pilih **1**. Untuk ukuran data sekarang
+  (37 baris di lima tab) seluruhnya selesai dalam beberapa detik.
+- **Client:** serahkan foldernya beserta kredensialnya sekali, lalu client
+  menjalankan menu **1** kapan pun ia butuh — bagian 11.
+- **Tanpa ada yang mengklik:** jadwalkan menu 1 di Task Scheduler — bagian 12.
 
-**Cara kerjanya.** Pengawas memeriksa `B3` setiap 60 detik. Begitu kotaknya
-dicentang, ia langsung mengosongkannya kembali (supaya kegagalan tidak
-terulang terus), menulis status "Sedang memproses", menjalankan ekspor kelima
-tab data, lalu menulis status, waktu, dan ringkasan baris. Kotak yang sudah kosong itu
-siap dicentang lagi kapan pun client mau.
+**Datanya setua ekspor terakhir.** Kalau tidak ada yang menjalankan, isi tab
+tidak berubah. Satu-satunya cara melihat kapan terakhir kali dijalankan dari
+dalam spreadsheet adalah stempel waktu di `device!D1` (bagian 7).
 
-**Yang dilakukan pengelola supaya ini hidup.** Jalankan `.bat` pilihan **4** dan
-biarkan jendelanya terbuka. Supaya tidak perlu diingat setiap hari, daftarkan di
-**Task Scheduler** Windows: pemicu *At log on*, aksi menjalankan
-`POS\Export ke Google Sheets.bat` dengan argumen `4`. Pengawas lalu aktif sendiri
-setiap kali Anda masuk Windows. Langkah pengawas ini sama saja di komputer mana
-pun ia dijalankan — di komputer pengelola maupun di komputer client.
-
-**Syarat yang tidak bisa dihindari.** Kredensial ada di mesin yang menjalankan
-pengawas, jadi permintaan client hanya dilayani saat **mesin itu menyala dan
-pengawasnya berjalan**. Kalau mesinnya mati atau Windows sedang tidur,
-centangannya tinggal menunggu — client bisa melihat itu dari baris *Status* dan
-*Waktu* yang tidak berubah.
-
-Dua cara menyelesaikannya, dan **yang kedua sudah dipilih** (2026-09-28):
-
-1. **Pindahkan pengawas ke mesin yang selalu menyala** (VPS kecil atau Raspberry
-   Pi). Kodenya sama, yang perlu ada di sana hanya `DATABASE_URL`, kredensial
-   Google, dan Python. Aiven bisa dijangkau dari luar jaringan toko, jadi tidak
-   ada perubahan kode.
-2. **Serahkan ke client: biarkan client menjalankan pengawas di komputernya**
-   dengan `DATABASE_URL` read-only. Mesin pengelola tidak perlu ikut hidup, dan
-   jam hidup pengawas menjadi tanggung jawab client. Langkah lengkapnya ada di
-   **bagian 11**.
-
-**Soal client punya akses Editor.** Editor pada spreadsheet ini berarti client
+**Soal client diberi akses Editor.** Editor pada spreadsheet ini berarti client
 juga bisa mengubah tab data. Itu tidak berbahaya di praktiknya: setiap tab
 ditulis ulang setiap kali ekspor berjalan, jadi perubahan mereka hilang sendiri,
 dan tab yang terhapus akan dibuat ulang. Yang tidak bisa mereka lakukan adalah
@@ -276,23 +231,29 @@ tidak perlu diatur oleh alat ini.
 
 ## 7. Hasilnya
 
-Satu spreadsheet, enam tab:
+Satu spreadsheet, lima tab:
 
 ```
 transactions                    <- satu tab per tabel
 transaction_detail
 payment_proof
-device
+device                          <- stempel waktu di sel D1
 device_transaction_sequence
-Kontrol                          <- tombol dan status permintaan
 ```
 
+**Stempel waktu jalan.** Tab `device` hanya memakai kolom A dan B, jadi sel `D1`
+diisi waktu (WIB) saat tab itu terakhir ditulis, mis. `2026-09-28 20:56:11 WIB`.
+Itu satu-satunya penanda kapan ekspor terakhir berjalan, dan sengaja dipasang di
+tab yang kolomnya masih lapang supaya tidak menimpa data. Kalau nanti ada tabel
+lain yang punya kolom kosong, selnya ditambahkan di `RUN_STAMP_CELLS` pada
+`tools/export_to_google_sheets.py`. Bila suatu saat tabel `device` memakai kolom
+D, stempelnya dilewati sendiri — bukan header kolom yang tertimpa.
+
 Tab bawaan `Sheet1` dihapus otomatis, tetapi hanya kalau memang masih kosong.
-Tab `transaction_daily_sequence` dari ekspor-ekspor sebelumnya **tidak** ikut
-terhapus — alat ini tidak pernah menghapus tab yang tidak ia kelola, supaya
-catatan yang client tempelkan di sebuah tab tidak hilang tanpa sengaja. Kalau
-tab itu masih ada, hapus sekali lewat menu klik kanan → *Delete* di Google
-Sheets.
+Tab sisa ekspor lama — `transaction_daily_sequence` dan `Kontrol` — **tidak**
+ikut terhapus: alat ini tidak pernah menghapus tab yang tidak ia kelola, supaya
+catatan yang client tempelkan di sebuah tab tidak hilang tanpa sengaja. Hapus
+keduanya sekali lewat klik kanan → *Delete* di Google Sheets.
 
 ## 8. Yang client belum bisa lihat dari sini
 
@@ -300,8 +261,8 @@ Sheets.
   metadata (`object_key`, ukuran, sha256). Menampilkan gambarnya butuh endpoint
   baca di server, dan itu keputusan terpisah yang masih terbuka.
 - **Harga pokok dan margin tidak ada**, karena tabel `item` dikecualikan.
-- **Datanya setua ekspor terakhir.** Kalau pengawas tidak berjalan dan tidak ada
-  yang mencentang, tab tetap berisi hasil jalan sebelumnya.
+- **Datanya setua ekspor terakhir.** Kalau tidak ada yang menjalankan ekspor,
+  tab tetap berisi hasil jalan sebelumnya (lihat `device!D1`).
 - **Device pembuat nota tidak terlihat langsung.** Tabel `transactions` tidak
   punya kolom `device_id`; asal device hanya bisa dibaca dari tiga huruf pertama
   `transaction_id` (mis. `T01-`).
@@ -316,19 +277,15 @@ Sheets.
 | Spreadsheet tujuan belum ditentukan | `GOOGLE_SPREADSHEET_ID` belum diisi | bagian 4.4 |
 | Ada dua spreadsheet berjudul sama | pencarian lewat judul menemukan lebih dari satu | pakai `GOOGLE_SPREADSHEET_ID` |
 | Kuota Google Sheets API tercapai | terlalu sering dijalankan | tunggu sekitar satu menit, ulangi; tidak ada tab yang setengah terisi |
-| Permintaan client tidak pernah diproses | mesin pengawas mati atau pengawas tidak berjalan | bagian 6 |
 | Berkas client-secret OAuth tidak ditemukan | `--auth oauth` dipakai tetapi berkas OAuth belum ada | bagian 11.2 |
 | Database tidak bisa dihubungi memakai DATABASE_URL | `DATABASE_URL` salah, atau IP mesin ini diblokir di Aiven | periksa isi `.env`; di console Aiven, bagian *Allowed IP addresses* |
 | Pengguna database tidak bisa melihat tabel ... | pengguna read-only belum diberi hak | bagian 11.1 |
 | Pengguna database belum punya hak baca (SELECT) ... | `GRANT SELECT` belum dijalankan | bagian 11.1 |
 | Catatan: lebar kolom tidak bisa ditambah sedikit | pembacaan metadata kolom gagal | bukan kegagalan; jalankan ulang, tab tetap berisi data |
-| Jeda pemeriksaan minimal 10 detik | `--interval` terlalu kecil | pakai 10 detik atau lebih |
 
-Kegagalan selalu dicetak di akhir keluaran bersama langkah perbaikannya, kode
-keluar bukan nol, dan status di tab `Kontrol` ikut mencatat pesan gagalnya
-supaya client tahu permintaannya tidak berhasil. Satu tab yang gagal tidak
-menghentikan tab lain: tab yang bisa ditulis tetap ditulis, lalu kegagalannya
-dilaporkan sekaligus.
+Kegagalan selalu dicetak di akhir keluaran bersama langkah perbaikannya, dan kode
+keluarnya bukan nol. Satu tab yang gagal tidak menghentikan tab lain: tab yang
+bisa ditulis tetap ditulis, lalu kegagalannya dilaporkan sekaligus.
 
 ## 10. Batas keamanan yang perlu disadari
 
@@ -485,10 +442,10 @@ Di komputer client:
    pos_pembaca`, dan `Hak tulis : tidak ada (read-only)`. Kalau semua itu benar
    dan semua tab terbaca, mesin client siap. Kalau `Mesin Google` menunjuk email
    yang tidak dikenal, berarti berkas kunci yang terpasang bukan yang dimaksud.
-5. **Biarkan hidup:** jalankan `.bat` pilihan **4**. Supaya nyala sendiri,
-   daftarkan di **Task Scheduler** komputer client dengan pemicu *At log on* dan
-   argumen `4`. Kalau komputer client dimatikan di luar jam kerja, permintaan di
-   luar jam itu baru dilayani saat komputernya dinyalakan lagi.
+5. **Jalankan kapan perlu:** `.bat` pilihan **1** setiap kali client ingin data
+   terbaru. Kalau ingin berjalan sendiri, jadwalkan pilihan 1 di **Task
+   Scheduler** komputer client (bagian 12) — tidak ada tombol di spreadsheet yang
+   perlu dilayani, jadi tidak ada proses yang harus dibiarkan menunggu.
 
 Kalau `venv` belum ada di salinan itu (mis. karena venv sengaja tidak ikut
 disalin), buat sekali di akar folder:
@@ -501,9 +458,9 @@ Paket-paketnya tidak perlu dipasang manual: `.bat` ekspor memasang sendiri
 `gspread`, `google-auth`, `google-auth-oauthlib`, `psycopg`, dan `python-dotenv`
 dari `tools\requirements-export.txt` saat pertama dijalankan.
 
-Kalau client ingin 24 jam tanpa bergantung komputernya, langkahnya sama: pindahkan
-folder ini ke VPS kecil dan jalankan menu **4** di sana (bisa juga dijadwalkan
-lewat cron atau Task Scheduler Linux).
+Kalau client ingin ekspornya berjalan tanpa ada yang mengklik, langkahnya sama:
+pindahkan folder ini ke VPS kecil dan jadwalkan menu **1** di sana (cron atau
+Timer systemd).
 
 ### 11.4 Yang tetap dibatasi
 
@@ -516,107 +473,53 @@ lewat cron atau Task Scheduler Linux).
   lewat DB client apa pun). Batasnya ada di `GRANT`, bukan di alat ini — karena
   itu batasi ke lima tabel di 11.1.
 
-## 12. Menjalankan pengawas tanpa komputer siapa pun menyala
+## 12. Menjalankan berkala di komputer sendiri
 
-Tujuan bagian ini: permintaan client tetap dilayani tanpa **komputer mana pun
-milik pengelola menyala**, dan tanpa kartu kredit.
+Ekspor tidak lagi dipicu tombol, jadi satu-satunya cara membuatnya berjalan
+sendiri adalah menjadwalkannya di komputer yang menyimpan kredensial.
 
-Bagian ini tidak diperlukan kalau program sudah dijalankan di komputer client
-sendiri (bagian 11) dan komputer itu memang hidup pada jam yang diinginkan.
-Isinya untuk kondisi sebaliknya: tidak ada komputer yang boleh dibiarkan menyala.
+**Windows (Task Scheduler).** Perintah berikut membuat satu tugas harian jam
+08:00, dijalankan sekali dari Command Prompt:
 
-Urutannya penting. Hampir semua platform yang menjalankan proses **selalu
-nyala** gratis kini meminta metode pembayaran: Northflank (Sandbox gratis tapi
-kartu wajib), Koyeb (sejak Februari 2026 kartu + otorisasi $29), Fly.io, Oracle
-Cloud, Google Cloud, AWS. Yang benar-benar tidak meminta kartu justru platform
-**terjadwal**, dan pengawas ini memang hanya perlu dipanggil berkala — ia hanya
-*keluar* menghubungi Google dan Aiven, tidak pernah menerima permintaan dari
-luar. Karena itu jalur utamanya adalah GitHub Actions (12.1).
-
-**Jalur kontainer sudah dihapus** dari repo ini pada 2026-09-28. `Dockerfile`,
-`.dockerignore`, dan langkah Northflank-nya dibuang karena tidak satu pun host
-selalu-nyala gratis bisa dipakai tanpa kartu, sementara dua cara yang tersisa —
-komputer client (bagian 11) dan GitHub Actions (12.1) — tidak membutuhkannya.
-Kalau nanti kartu sudah siap, berkasnya masih bisa diambil dari riwayat git:
-
-```bash
-git log --oneline -- Dockerfile
-git show <commit>:Dockerfile > Dockerfile
+```bat
+schtasks /Create /TN "Ekspor POS ke Sheets" /SC DAILY /ST 08:00 ^
+  /TR "D:\DB-to-sheets\venv\Scripts\python.exe D:\DB-to-sheets\tools\export_to_google_sheets.py"
 ```
 
-### 12.1 GitHub Actions: gratis, tanpa kartu, tanpa layanan baru
+Sesuaikan folder `D:\DB-to-sheets\` dengan tempat folder ini diletakkan. Yang
+dipanggil adalah **python-nya langsung**, bukan `.bat`-nya: `.bat` berhenti
+menunggu tombol ditekan di akhir, dan penantian itu tidak ada yang menjawabnya
+dalam tugas otomatis. Untuk mencobanya sekarang tanpa menunggu jamnya:
+`schtasks /Run /TN "Ekspor POS ke Sheets"`, lalu lihat waktu terakhir di
+`device!D1`.
 
-Dua berkas sudah disertakan di `.github/workflows/`:
+**Linux (cron).** Satu baris, tiap hari jam 08:00, keluaran dicatat ke berkas:
 
-| Berkas | Jadwal | Tugasnya |
-| --- | --- | --- |
-| `refresh-sheets.yml` | tiap 5 menit | memanggil `--if-requested` — melayani centangan di tab Kontrol |
-| `keepalive.yml` | tgl 1 dan 15 | satu commit kosong, supaya GitHub tidak mematikan jadwalnya |
-
-Yang perlu dilakukan sekali saja:
-
-1. Buka repo di GitHub → **Settings** → **Secrets and variables** → **Actions**
-   → **New repository secret**, lalu isi ketiganya:
-
-   | Nama | Isi |
-   | --- | --- |
-   | `DATABASE_URL` | koneksi PostgreSQL, boleh pengguna read-only |
-   | `GOOGLE_SPREADSHEET_ID` | ID atau link spreadsheet tujuan |
-   | `GOOGLE_SERVICE_ACCOUNT_JSON` | seluruh isi `service-account.json`, ditempel apa adanya |
-
-   Isi berkas kunci bisa dimasukkan ke clipboard tanpa tampil di layar:
-   `Get-Content ".secrets\service-account.json" -Raw | Set-Clipboard` lalu tempel.
-   Sesudahnya, bersihkan clipboard dengan menyalin teks lain.
-2. Buka tab **Actions** → pilih **Ekspor ke Google Sheets** → **Run workflow**
-   untuk mencobanya sekarang tanpa menunggu jadwal. Log yang benar berisi
-   `Tidak ada permintaan baru di tab Kontrol.` beserta nama database dan
-   spreadsheet — sama seperti mode sekali-jalan di komputer sendiri.
-3. Centang `Kontrol!B3` dari mana saja, lalu tunggu satu putaran jadwal. Kolom
-   status, waktu, dan ringkasan terisi seperti biasa.
-
-### 12.2 Menjalankan mode terjadwal di host lain
-
-Host terjadwal mana pun bisa memakai mode sekali-jalan: perintahnya
-`--if-requested`, lalu diatur jadwalnya (mis. tiap 5 menit).
-
-Bedanya dengan pengawas: prosesnya tidak menunggu, hanya bangun saat jadwalnya
-tiba. Kalau kotaknya belum dicentang, skrip keluar tanpa menyentuh Google Sheets;
-kalau dicentang, ekspor berjalan. Permintaan client dilayani dengan jeda sampai
-satu interval, bukan di bawah satu menit.
-
-```bash
-python tools/export_to_google_sheets.py --if-requested
+```
+0 8 * * * cd /path/ke/DB-to-sheets && venv/bin/python tools/export_to_google_sheets.py >> ekspor.log 2>&1
 ```
 
-Mode inilah yang dipakai GitHub Actions di 12.1. Task Scheduler di komputer yang
-menyala terus dan cron di VPS memakainya dengan cara yang sama; yang berbeda
-hanya jadwalnya. Tidak ada berkas di repo ini yang perlu diubah untuk itu.
+Yang perlu disadari:
 
-### 12.3 Batas yang perlu disadari
+- **Komputernya harus menyala** pada jam yang dijadwalkan. Kalau jadwalnya
+  terlewat, tidak ada yang mengejar — data terbaru baru ada pada jalan berikutnya.
+- **Tidak ada jalur cloud di repo ini.** Jalur kontainer (Dockerfile + Northflank)
+  dihapus 2026-09-28 karena tidak satu pun host selalu-nyala gratis bisa dipakai
+  tanpa kartu kredit, dan jalur GitHub Actions dihapus di hari yang sama setelah
+  tombolnya dipensiunkan — penjadwal tidak lagi punya alasan untuk menunggu
+  permintaan dari luar. Kalau nanti salah satunya dibutuhkan lagi, keduanya
+  masih ada di riwayat git:
+  `git log --oneline -- Dockerfile .github/workflows`.
+- Paketnya **portabel**: memindahkannya ke VPS kecil pun cukup menaruh folder ini,
+  membuat venv, lalu menjadwalkannya dengan cron atau timer systemd. Tidak ada
+  berkas yang perlu diubah.
 
-- **Jeda GitHub Actions 5-15 menit, bukan 60 detik.** Cron GitHub tidak menerima
-  jadwal lebih rapat dari lima menit, dan saat servernya sibuk jadwalnya bisa
-  terlambat. Untuk sebuah tombol "minta data terbaru" itu biasanya tidak masalah;
-  kalau client butuh kesegaran detik, jawabannya pengawas `--watch` di komputer
-  yang menyala terus (bagian 11.3).
-- **Jadwal mati kalau repo 60 hari tanpa commit.** GitHub mematikan workflow
-  terjadwal secara diam-diam di repo publik yang menganggur; itu yang dijaga
-  `keepalive.yml`. Kalau ternyata commit bot tidak dihitung sebagai aktivitas,
-  GitHub akan mengirim email dan tombol *Enable workflow* bisa diklik sekali lagi.
-- **Menit gratis Actions tidak terbatas hanya selama repo ini publik.** Kalau repo
-  dijadikan privat, jatahnya 2.000 menit/bulan — jadwal tiap 5 menit akan
-  menghabiskannya, jadi ubah `cron` di `refresh-sheets.yml` menjadi tiap 30 menit
-  (jatahnya jadi sekitar 480 menit sebulan).
-- Paketnya **portabel**: kalau nanti berpindah host, yang berubah hanya cara ia
-  dijalankan — cukup `python tools/export_to_google_sheets.py --watch` plus
-  `systemd` atau Task Scheduler, atau mode terjadwal di 12.2. Kode dan
-  kredensialnya tidak berubah.
+### 12.1 Keamanan
 
-### 12.4 Keamanan
-
-- `GOOGLE_SERVICE_ACCOUNT_JSON` adalah **kredensial penulis** untuk setiap
-  spreadsheet yang dibagikan ke service account itu. Simpan sebagai secret di
-  GitHub (Settings → Secrets and variables → Actions), jangan pernah di repo.
+- Kunci service account adalah **kredensial penulis** untuk setiap spreadsheet
+  yang dibagikan ke akun itu. Simpan hanya di `.secrets\` atau di luar repo
+  (`%USERPROFILE%\.pos-sheets\`), dan jangan pernah menempelkan isinya ke berkas
+  yang terlacak git.
 - **Dua berkas di repo ini cuma penanda, bukan kredensial:** `.env` berisi teks
   contoh dan `.secrets/service-account.json` berisi `{}`. Keduanya ada supaya
   susunan berkasnya terlihat. Karena sudah terlacak git, `.gitignore` tidak lagi
@@ -624,6 +527,6 @@ hanya jadwalnya. Tidak ada berkas di repo ini yang perlu diubah untuk itu.
   ditempel ke sana lalu di-commit; repo ini publik. Berkas penanda yang belum
   diisi ditolak sebagai "belum diisi", jadi pesan galatnya tetap menunjukkan
   lokasi kunci yang dicari.
-- Kalau nanti yang menjalankan pengawas adalah client, arah yang lebih aman tetap
+- Kalau nanti yang menjalankan ekspor adalah client, arah yang lebih aman tetap
   `--auth oauth` di komputernya sendiri (bagian 11.2): kunci penulis tidak perlu
   berpindah tangan.

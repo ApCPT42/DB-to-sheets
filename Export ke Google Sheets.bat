@@ -15,11 +15,12 @@ setlocal EnableExtensions
 ::  Prasyarat sekali saja di mesin ini:
 ::    - paket Python sudah terpasang
 ::    - venv di folder ini (lihat pesan galat kalau belum ada)
-::    - berkas service account Google, dan spreadsheet tujuan
-::      sudah dibagikan ke email service account itu sebagai Editor.
+::    - berkas kunci service account Google di
+::      .secrets\service-account.json, dan spreadsheet tujuan sudah
+::      dibagikan ke email service account itu sebagai Editor.
 ::      Cara membuatnya ada di GOOGLE_SHEETS_EXPORT.md
-::      Di komputer client, jangan pakai kunci service account: tambahkan
-::      --auth oauth supaya client masuk dengan akun Google-nya sendiri
+::      Kalau kuncinya tidak ingin ada di mesin ini, tambahkan
+::      --auth oauth supaya masuk dengan akun Google Anda sendiri
 ::      (lihat bagian "Mode client" di dokumen yang sama).
 ::    - di .env ada baris DATABASE_URL dan GOOGLE_SPREADSHEET_ID
 ::
@@ -28,8 +29,6 @@ setlocal EnableExtensions
 ::    "Export ke Google Sheets.bat" 2      uji tanpa menulis
 ::    "Export ke Google Sheets.bat" 3      periksa kredensial & tab
 ::    "Export ke Google Sheets.bat" 3 --auth oauth   login akun Google client
-::    "Export ke Google Sheets.bat" 4      pengawas permintaan client
-::    "Export ke Google Sheets.bat" 4 --interval 30
 ::
 ::  Berkas ini wajib berakhir baris CRLF. Aturan `*.bat` di
 ::  .gitattributes yang menjaminnya, karena cmd salah membaca
@@ -67,10 +66,9 @@ echo  Pilihan:
 echo    [1] Ekspor sekarang        - mengganti isi spreadsheet
 echo    [2] Uji tanpa menulis      - dry run, tidak menyentuh Google
 echo    [3] Periksa kredensial     - cek kredensial Google, database, dan tab
-echo    [4] Pengawas permintaan    - melayani tombol client, biarkan terbuka
 echo(
 set "PILIHAN=1"
-set /p "PILIHAN=Pilihan [1/2/3/4], Enter = 1: "
+set /p "PILIHAN=Pilihan [1/2/3], Enter = 1: "
 if not defined PILIHAN set "PILIHAN=1"
 goto :jalankan
 
@@ -81,8 +79,7 @@ set "PILIHAN=%~1"
 set "ARGS="
 if "%PILIHAN%"=="2" set "ARGS=--dry-run"
 if "%PILIHAN%"=="3" set "ARGS=--check"
-if "%PILIHAN%"=="4" set "ARGS=--watch"
-if not "%PILIHAN%"=="1" if not "%PILIHAN%"=="2" if not "%PILIHAN%"=="3" if not "%PILIHAN%"=="4" goto :pilihan_salah
+if not "%PILIHAN%"=="1" if not "%PILIHAN%"=="2" if not "%PILIHAN%"=="3" goto :pilihan_salah
 
 :: Sisa argumen diteruskan apa adanya, mis. --only transactions.
 shift
@@ -126,7 +123,7 @@ pause
 exit /b 1
 
 :pilihan_salah
-echo [X] Pilihan "%PILIHAN%" tidak dikenal. Jalankan lagi dan pilih 1 sampai 4.
+echo [X] Pilihan "%PILIHAN%" tidak dikenal. Jalankan lagi dan pilih 1 sampai 3.
 echo(
 pause
 exit /b 1

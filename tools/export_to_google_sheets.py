@@ -20,29 +20,19 @@ Aturan yang mengikat skrip ini:
 - **Kredensial tidak pernah dicetak.** `DATABASE_URL` memuat password; yang
   ditampilkan hanya host dan nama database.
 
-Ada dua cara pakai, dan keduanya memakai kode yang sama. Pengawasnya sendiri
-boleh berjalan di mesin pengelola, di komputer client, atau di host cloud —
-selama ia bisa menjangkau database dan punya kredensial Google:
-
-1. **Tombol di spreadsheet (bawaan).** Client tidak diberi kredensial apa pun.
-   Mereka meminta data terbaru dengan **mencentang satu kotak di tab Kontrol**;
-   pengawas (`--watch`) di mesin pengelola membaca kotak itu lalu menjalankan
-   ekspor. Karena itu pengawas wajib berjalan di mesin yang punya `DATABASE_URL`
-   dan kredensial Google, dan permintaan hanya dilayani selama mesin itu hidup.
-2. **Client menjalankan sendiri.** Client diberi `DATABASE_URL` **read-only**
-   (disetujui pemilik: isi database memang milik client) dan menjalankan skrip
-   ini di komputernya sendiri. Untuk cara ini jangan pakai kunci service account:
-   pakai `--auth oauth`, yaitu client masuk dengan **akun Google-nya sendiri**
-   lewat peramban, sehingga tidak ada kunci penulis yang perlu diserahkan.
-
-Cara masuk Google dipilih lewat `--auth` atau `GOOGLE_AUTH_MODE`:
-`service-account` (bawaan, untuk mesin pengelola) atau `oauth` (untuk client).
+Skrip ini dijalankan manual: sekali jalan, seluruh isi tab diganti dengan isi
+database saat itu. Tidak ada tombol, tidak ada pengawas yang menunggu, dan tidak
+ada bagian yang perlu dibiarkan hidup. Kalau ingin data terbaru, skrip ini
+dijalankan lagi — lewat `Export ke Google Sheets.bat` pilihan **1**, atau
+dijadwalkan sendiri dengan Task Scheduler kalau memang perlu berkala.
 
 Konfigurasi boleh datang dari berkas `.env` di akar repo ini, atau dari variabel
-lingkungan kalau berkasnya tidak ada. Di host yang tidak nyaman menyimpan berkas
-rahasia (kontainer, PaaS, cron cloud) isi kunci service account bisa diisi
-langsung ke `GOOGLE_SERVICE_ACCOUNT_JSON`, sehingga tidak ada kunci yang perlu
-ditulis ke disk.
+lingkungan kalau berkasnya tidak ada. Di mesin yang tidak nyaman menyimpan berkas
+rahasia, isi kunci service account bisa diisi langsung ke
+`GOOGLE_SERVICE_ACCOUNT_JSON`, sehingga tidak ada kunci yang perlu ditulis ke
+disk. Cara masuk Google dipilih lewat `--auth` atau `GOOGLE_AUTH_MODE`:
+`service-account` (bawaan; berkas kunci JSON) atau `oauth` (akun Google sendiri
+lewat peramban, kalau kunci penulis tidak ingin diserahkan ke mesin itu).
 
 Repo ini berdiri sendiri dan tidak membutuhkan aplikasi POS: yang diperlukan
 hanya akses baca ke database dan kredensial Google. Jalankan lewat
@@ -51,8 +41,6 @@ hanya akses baca ke database dan kredensial Google. Jalankan lewat
     venv\\Scripts\\python.exe tools\\export_to_google_sheets.py --check
     venv\\Scripts\\python.exe tools\\export_to_google_sheets.py --dry-run
     venv\\Scripts\\python.exe tools\\export_to_google_sheets.py
-    venv\\Scripts\\python.exe tools\\export_to_google_sheets.py --watch
-    venv\\Scripts\\python.exe tools\\export_to_google_sheets.py --if-requested
 """
 
 from __future__ import annotations
@@ -62,7 +50,6 @@ import json
 import os
 import re
 import sys
-import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -101,66 +88,6 @@ TABLES: dict[str, str] = {
     "device": "device_code",
     "device_transaction_sequence": "device_id",
 }
-
-# --- Tab Kontrol: satu-satunya bagian yang disentuh client -------------------
-CONTROL_TAB_TITLE = "Kontrol"
-CONTROL_BUTTON_CELL = "B3"
-CONTROL_STATUS_CELL = "B4"
-CONTROL_UPDATED_CELL = "B5"
-CONTROL_SUMMARY_CELL = "B6"
-
-CONTROL_LAYOUT = [
-    ["Kontrol ekspor data POS", "", ""],
-    ["", "", ""],
-    ["Minta data terbaru", "", "centang kotaknya, lalu tunggu"],
-    ["Status terakhir", "(belum ada permintaan)", ""],
-    ["Waktu permintaan diproses", "-", ""],
-    ["Ringkasan data terakhir", "-", ""],
-    ["", "", ""],
-    ["Cara pakai", "", ""],
-    ["1. Centang kotak di sel B3.", "", ""],
-    ["2. Tunggu. Baris Status dan Waktu terisi sendiri, biasanya di bawah satu menit.", "", ""],
-    ["3. Isi tab lain akan tergantikan dengan data terbaru dari database.", "", ""],
-    ["", "", ""],
-    ["Catatan", "", ""],
-    [
-        "Permintaan dilayani otomatis oleh pengawas ekspor. Kalau pengawasnya sedang tidak berjalan, centangan baru diproses setelah pengawas dinyalakan lagi.",
-        "",
-        "",
-    ],
-    ["Data diambil dari database pada saat permintaan dilayani, bukan salinan lama.", "", ""],
-    ["", "", ""],
-    ["Nama tab, satu untuk setiap tabel", "", ""],
-]
-
-# Sel petunjuk yang teksnya disegarkan setiap kali skrip dijalankan. Dengan
-# begitu kalimat yang sudah tidak sesuai (mis. catatan soal komputer pemilik)
-# bisa diperbaiki tanpa menghapus tab dan tanpa kehilangan isinya. Sel B3:B6
-# sengaja TIDAK termasuk: di situlah kotak centang, status, waktu, dan
-# ringkasan, sehingga tulisan ulang petunjuk tidak boleh menimpa permintaan
-# client yang belum diproses.
-CONTROL_NOTE_CELLS: dict[str, str] = {
-    "A1": CONTROL_LAYOUT[0][0],
-    "A3": CONTROL_LAYOUT[2][0],
-    "C3": CONTROL_LAYOUT[2][2],
-    "A4": CONTROL_LAYOUT[3][0],
-    "A5": CONTROL_LAYOUT[4][0],
-    "A6": CONTROL_LAYOUT[5][0],
-    "A8": CONTROL_LAYOUT[7][0],
-    "A9": CONTROL_LAYOUT[8][0],
-    "A10": CONTROL_LAYOUT[9][0],
-    "A11": CONTROL_LAYOUT[10][0],
-    "A13": CONTROL_LAYOUT[12][0],
-    "A14": CONTROL_LAYOUT[13][0],
-    "A15": CONTROL_LAYOUT[14][0],
-    "A17": CONTROL_LAYOUT[16][0],
-}
-
-# Nilai kotak centang yang dianggap BUKAN permintaan.
-NOT_A_REQUEST = {"", "FALSE", "0", "0.0", "NO", "TIDAK", "-"}
-
-DEFAULT_WATCH_INTERVAL_SECONDS = 60
-MIN_WATCH_INTERVAL_SECONDS = 10
 
 # Batas panjang judul spreadsheet dan nama tab di Google Sheets.
 MAX_TITLE_LENGTH = 100
@@ -241,6 +168,13 @@ NUMBER_COLUMNS = {"quantity", "byte_size", "next_sequence"}
 # dipakai walau datanya sedikit.
 MIN_GRID_ROWS = 20
 MIN_GRID_COLS = 4
+
+# Sel stempel waktu jalan, per tab. `device` hanya memakai dua kolom (A dan B),
+# jadi kolom D masih bebas: stempelnya tidak menimpa header maupun data. Kalau
+# nanti tabelnya memakai kolom itu, stempelnya dilewati sendiri supaya bukan
+# header yang tertimpa.
+RUN_STAMP_CELLS: dict[str, str] = {"device": "D1"}
+STAMP_COLUMN_PIXELS = 170
 
 # Lebar kolom: setelah Google menghitung lebar pas untuk isi kolom, tiap kolom
 # ditambah sedikit ruang supaya huruf terakhir tidak menempel garis kolom.
@@ -845,6 +779,65 @@ def styling_requests(sheet_id: int, columns: list[str], row_count: int) -> list[
     return requests
 
 
+def column_number(cell: str) -> int:
+    """Nomor kolom dari alamat selnya: A1 -> 1, D1 -> 4, AA1 -> 27."""
+    nomor = 0
+
+    for karakter in cell.upper():
+        if not karakter.isalpha():
+            break
+
+        nomor = nomor * 26 + (ord(karakter) - ord("A") + 1)
+
+    return nomor
+
+
+def write_run_stamp(spreadsheet, worksheet, table: str, column_count: int) -> None:
+    """Tulis waktu skrip ini dijalankan ke sel bebas milik tab ini.
+
+    Hanya tab yang memang punya sel bebas yang diberi stempel (lihat
+    RUN_STAMP_CELLS). Kalau tabelnya sudah memakai kolom itu, stempelnya
+    dilewati: kolom yang berisi header atau data tidak boleh tertimpa.
+
+    Stempel ini murni keterangan, jadi kegagalannya hanya dicatat - tidak
+    membuat ekspor dianggap gagal.
+    """
+    cell = RUN_STAMP_CELLS.get(table)
+
+    if not cell:
+        return
+
+    kolom = column_number(cell)
+
+    if kolom <= column_count:
+        log(f"  Catatan: sel stempel {table}!{cell} sudah dipakai kolom data, dilewati.")
+
+        return
+
+    try:
+        worksheet.update_acell(cell, timestamp())
+        spreadsheet.batch_update(
+            {
+                "requests": [
+                    {
+                        "updateDimensionProperties": {
+                            "range": {
+                                "sheetId": worksheet.id,
+                                "dimension": "COLUMNS",
+                                "startIndex": kolom - 1,
+                                "endIndex": kolom,
+                            },
+                            "properties": {"pixelSize": STAMP_COLUMN_PIXELS},
+                            "fields": "pixelSize",
+                        }
+                    }
+                ]
+            }
+        )
+    except Exception as error:
+        log(f"  Catatan: stempel waktu di {table}!{cell} tidak bisa ditulis: {error}")
+
+
 def write_tab(spreadsheet, table: str, columns: list[str], rows: list[list[Any]]) -> str:
     """Ganti seluruh isi satu tab: header + data, lalu rapikan tampilannya."""
     worksheet = get_or_create_worksheet(
@@ -854,12 +847,17 @@ def write_tab(spreadsheet, table: str, columns: list[str], rows: list[list[Any]]
     if worksheet.title != table[:MAX_SHEET_NAME_LENGTH]:
         worksheet.update_title(table[:MAX_SHEET_NAME_LENGTH])
 
+    # Tabnya perlu cukup lebar untuk menampung stempel waktu juga (kalau ada),
+    # sebab sel itu ditulis di luar kolom datanya.
+    stempel = RUN_STAMP_CELLS.get(table)
+    kolom_stempel = column_number(stempel) if stempel else 0
+
     # Dibersihkan dulu supaya kalau isi lama lebih panjang, sisa barisnya tidak
     # tertinggal di bawah data baru.
     worksheet.clear()
     worksheet.resize(
         rows=max(len(rows) + 1, MIN_GRID_ROWS),
-        cols=max(len(columns), MIN_GRID_COLS),
+        cols=max(len(columns), kolom_stempel, MIN_GRID_COLS),
     )
 
     # Satu panggilan untuk header dan seluruh data: tidak ada keadaan setengah
@@ -867,6 +865,7 @@ def write_tab(spreadsheet, table: str, columns: list[str], rows: list[list[Any]]
     worksheet.update([columns, *rows], "A1")
 
     spreadsheet.batch_update({"requests": styling_requests(worksheet.id, columns, len(rows))})
+    write_run_stamp(spreadsheet, worksheet, table, len(columns))
     pad_columns(spreadsheet, worksheet, len(columns))
 
     return worksheet.title
@@ -924,92 +923,6 @@ def pad_columns(spreadsheet, worksheet, column_count: int) -> None:
                 log(f"  Catatan: lebar kolom tab {worksheet.title} dibiarkan apa adanya: {error}")
 
         return
-
-
-def is_request(value: str) -> bool:
-    """Kotak centang bernilai TRUE saat dicentang; teks apa pun juga dianggap permintaan."""
-    return (value or "").strip().upper() not in NOT_A_REQUEST
-
-
-def cell_value(worksheet, cell: str) -> str:
-    try:
-        nilai = worksheet.acell(cell).value
-    except Exception:
-        return ""
-
-    return "" if nilai is None else str(nilai).strip()
-
-
-def write_cells(worksheet, values: dict[str, str]) -> None:
-    for cell, value in values.items():
-        try:
-            worksheet.update_acell(cell, value)
-        except Exception as error:
-            log(f"  GAGAL menulis {cell}: {error}")
-
-
-def ensure_control_tab(spreadsheet, tables: dict[str, str]):
-    """Siapkan tab Kontrol beserta tombol kotak centangnya.
-
-    Petunjuknya hanya ditulis saat tab baru dibuat, tetapi tombol dan
-    perapiannya selalu dipasang ulang. Dengan begitu tab yang sudah ada tetap
-    bisa diperbaiki tanpa menghapus isinya dan tanpa membuat ulang tabnya.
-    """
-    created = False
-
-    try:
-        worksheet = spreadsheet.worksheet(CONTROL_TAB_TITLE)
-    except Exception:
-        worksheet = spreadsheet.add_worksheet(
-            title=CONTROL_TAB_TITLE, rows=len(CONTROL_LAYOUT) + len(tables), cols=3
-        )
-        created = True
-
-    if created:
-        layout = [baris[:] for baris in CONTROL_LAYOUT]
-
-        for nama in tables:
-            layout.append([nama, "", ""])
-
-        worksheet.update(layout, "A1")
-        log(f"Tab Kontrol dibuat di spreadsheet \"{spreadsheet.title}\".")
-    else:
-        refresh_control_notes(worksheet)
-
-    try:
-        from gspread.utils import ValidationConditionType
-
-        # Kotak centang: TRUE berarti client meminta data terbaru. Tipe kondisinya
-        # wajib berupa anggota enum gspread, bukan string "BOOLEAN".
-        worksheet.add_validation(
-            CONTROL_BUTTON_CELL,
-            ValidationConditionType.boolean,
-            [],
-            strict=False,
-            inputMessage="Centang untuk meminta data terbaru dari database.",
-        )
-        worksheet.format("A1", {"textFormat": {"bold": True, "fontSize": 14}})
-        worksheet.format("A3:B5", {"textFormat": {"bold": True}})
-        worksheet.format("A9:A11", {"textFormat": {"italic": True}})
-        worksheet.format("A14:A15", {"textFormat": {"italic": True}})
-        worksheet.freeze(rows=1)
-        worksheet.columns_auto_resize(0, 2)
-    except Exception as error:
-        log(f"  Catatan: sebagian tampilan tab Kontrol tidak bisa dirapikan: {error}")
-
-    return worksheet
-
-
-def refresh_control_notes(worksheet) -> None:
-    """Tulis ulang kalimat petunjuk di tab Kontrol tanpa menyentuh statusnya."""
-    nilai = [
-        {"range": sel, "values": [[teks]]} for sel, teks in CONTROL_NOTE_CELLS.items()
-    ]
-
-    try:
-        worksheet.batch_update(nilai)
-    except Exception as error:
-        log(f"  Catatan: petunjuk tab Kontrol tidak bisa disegarkan: {error}")
 
 
 def remove_default_empty_tab(spreadsheet) -> None:
@@ -1237,159 +1150,11 @@ def run_export(dry_run: bool, only: str | None, auth_override: str | None = None
     with psycopg.connect(url) as connection:
         ringkasan = export_tables(connection, spreadsheet, tables, identitas)
 
-    ensure_control_tab(spreadsheet, tables)
     remove_default_empty_tab(spreadsheet)
 
     print_summary(ringkasan, dry_run=False)
 
     return 0
-
-
-# --------------------------------------------------------------------------
-# Pengawas: tombol permintaan untuk client
-# --------------------------------------------------------------------------
-
-
-def watch_interval_seconds(override: int | None) -> int:
-    if override is not None:
-        nilai = override
-    else:
-        raw = os.environ.get("GOOGLE_SHEETS_WATCH_INTERVAL", "").strip()
-
-        if not raw:
-            return DEFAULT_WATCH_INTERVAL_SECONDS
-
-        try:
-            nilai = int(raw)
-        except ValueError as error:
-            raise ExportError(
-                f"GOOGLE_SHEETS_WATCH_INTERVAL harus angka detik, bukan \"{raw}\"."
-            ) from error
-
-    if nilai < MIN_WATCH_INTERVAL_SECONDS:
-        raise ExportError(
-            f"Jeda pemeriksaan minimal {MIN_WATCH_INTERVAL_SECONDS} detik supaya "
-            f"kuota Google Sheets API tidak terbuang percuma. Nilai sekarang: {nilai}."
-        )
-
-    return nilai
-
-
-def serve_request(
-    worksheet, spreadsheet, url: str, tables: dict[str, str], identitas: str
-) -> int:
-    """Layani satu permintaan client: kosongkan kotak, ekspor, lalu tulis status.
-
-    Kotak dikosongkan **sebelum** ekspor: kalau ekspornya gagal, permintaan lama
-    tidak ikut terulang terus setiap putaran. Kegagalan tetap dilaporkan sebagai
-    kode keluar bukan nol supaya host penjadwal mencatatnya.
-    """
-    write_cells(worksheet, {CONTROL_BUTTON_CELL: "FALSE"})
-    log("Permintaan baru dari tab Kontrol - menjalankan ekspor.")
-
-    # Petunjuk ikut disegarkan di sini, bukan hanya saat pengawas mulai:
-    # pengawas yang menyala berminggu-minggu di host lain tetap memakai kalimat
-    # terbaru dari kode tanpa perlu dijalankan ulang.
-    refresh_control_notes(worksheet)
-    write_cells(worksheet, {CONTROL_STATUS_CELL: "Sedang memproses permintaan..."})
-
-    try:
-        with psycopg.connect(url) as connection:
-            ringkasan = export_tables(connection, spreadsheet, tables, identitas)
-    except Exception as error:
-        pesan = str(error).splitlines()[0] if str(error) else error.__class__.__name__
-        log(f"Ekspor gagal: {pesan}")
-        write_cells(worksheet, {CONTROL_STATUS_CELL: f"Gagal: {pesan}"})
-
-        return 1
-
-    total = sum(baris for _, _, baris, _ in ringkasan)
-    ringkas = ", ".join(f"{nama} {baris}" for nama, _, baris, _ in ringkasan)
-
-    write_cells(
-        worksheet,
-        {
-            CONTROL_STATUS_CELL: f"Selesai. {len(ringkasan)} tab diperbarui, total {total} baris.",
-            CONTROL_UPDATED_CELL: timestamp(),
-            CONTROL_SUMMARY_CELL: ringkas,
-        },
-    )
-    log(f"Permintaan selesai: {total} baris di {len(ringkasan)} tab.")
-
-    return 0
-
-
-def run_watch(
-    interval_override: int | None, only: str | None, auth_override: str | None = None
-) -> int:
-    url = database_url()
-    tables = selected_tables(only)
-    interval = watch_interval_seconds(interval_override)
-
-    mode, path, identitas = google_credentials(auth_override)
-
-    log("Mode pengawas. Biarkan jendela ini terbuka; hentikan dengan Ctrl+C.")
-    log(f"Masuk sebagai  : {identitas} ({mode})")
-    log(f"Kredensial     : {credentials_source(path)}")
-    log(f"Database       : {describe_database(url)}")
-
-    if mode == AUTH_OAUTH:
-        log(f"Status login   : {oauth_login_state()}")
-
-    check_database_access(url)
-
-    client = build_client(mode, path)
-    spreadsheet = open_spreadsheet(client, identitas)
-    log(f"Spreadsheet    : {spreadsheet.title} ({spreadsheet.id})")
-    log(f"Tautan         : {spreadsheet.url}")
-
-    if mode == AUTH_SERVICE_ACCOUNT:
-        share_spreadsheet(spreadsheet)
-    worksheet = ensure_control_tab(spreadsheet, tables)
-    remove_default_empty_tab(spreadsheet)
-    log(f"Diperiksa setiap {interval} detik.")
-
-    while True:
-        try:
-            if is_request(cell_value(worksheet, CONTROL_BUTTON_CELL)):
-                serve_request(worksheet, spreadsheet, url, tables, identitas)
-        except Exception as error:
-            # Kesalahan membaca kotaknya sendiri (mis. jaringan) tidak boleh
-            # menghentikan pengawas: dicatat, lalu dicoba lagi putaran berikutnya.
-            pesan = str(error).splitlines()[0] if str(error) else error.__class__.__name__
-            log(f"Pemeriksaan tab Kontrol gagal: {pesan}")
-
-        time.sleep(interval)
-
-
-def run_once(only: str | None, auth_override: str | None = None) -> int:
-    """Periksa sekali saja: ekspor kalau kotaknya dicentang, lalu keluar.
-
-    Dipakai host yang menjalankan skrip secara terjadwal (cron di PaaS, Cloud
-    Scheduler, GitHub Actions), bukan pengawas yang menunggu di satu proses.
-    Tanpa permintaan, skrip keluar dengan kode nol tanpa menyentuh Google Sheets.
-    """
-    url = database_url()
-    tables = selected_tables(only)
-
-    mode, path, identitas = google_credentials(auth_override)
-
-    log(f"Masuk sebagai: {identitas} ({mode})")
-    log(f"Kredensial   : {credentials_source(path)}")
-    log(f"Database     : {describe_database(url)}")
-
-    client = build_client(mode, path)
-    spreadsheet = open_spreadsheet(client, identitas)
-
-    worksheet = ensure_control_tab(spreadsheet, tables)
-    remove_default_empty_tab(spreadsheet)
-
-    if not is_request(cell_value(worksheet, CONTROL_BUTTON_CELL)):
-        log("Tidak ada permintaan baru di tab Kontrol.")
-
-        return 0
-
-    return serve_request(worksheet, spreadsheet, url, tables, identitas)
 
 
 def selected_tables(only: str | None) -> dict[str, str]:
@@ -1419,24 +1184,10 @@ def parse_arguments() -> argparse.Namespace:
         action="store_true",
         help="baca database dan tampilkan rencananya, tanpa menyentuh Google Sheets",
     )
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument(
+    parser.add_argument(
         "--check",
         action="store_true",
         help="periksa kredensial Google, sambungan database, dan daftar tabnya",
-    )
-    mode.add_argument(
-        "--watch",
-        action="store_true",
-        help="pengawas: jalankan ekspor setiap kali kotak di tab Kontrol dicentang",
-    )
-    mode.add_argument(
-        "--if-requested",
-        action="store_true",
-        help=(
-            "sekali periksa: ekspor kalau kotak di tab Kontrol dicentang, lalu "
-            "keluar (untuk host berbasis cron)"
-        ),
     )
     parser.add_argument(
         "--only",
@@ -1452,13 +1203,6 @@ def parse_arguments() -> argparse.Namespace:
             "atau oauth (akun Google Anda sendiri, untuk mode client)"
         ),
     )
-    parser.add_argument(
-        "--interval",
-        type=int,
-        metavar="DETIK",
-        help=f"jeda pemeriksaan tab Kontrol saat --watch (bawaan {DEFAULT_WATCH_INTERVAL_SECONDS} detik)",
-    )
-
     return parser.parse_args()
 
 
@@ -1470,12 +1214,6 @@ def main() -> int:
 
         if arguments.check:
             return run_check(arguments.auth)
-
-        if arguments.watch:
-            return run_watch(arguments.interval, arguments.only, arguments.auth)
-
-        if arguments.if_requested:
-            return run_once(arguments.only, arguments.auth)
 
         return run_export(arguments.dry_run, arguments.only, arguments.auth)
     except ExportError as error:
