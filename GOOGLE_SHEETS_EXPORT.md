@@ -19,7 +19,8 @@ diserahkan tetap read-only. Rinciannya di bagian 11.
 (`1kB02M_4asD38-7Qna6N9cSws5EHpP3VglXLw2nrHC0A`) sejak 2026-09-28: lima tab data
 terisi (lihat bagian 2), tab bawaan `Sheet1` dihapus, header tebal dan
 dibekukan, kolom uang berformat `Rp`, dan lebar kolom menyesuaikan isi (bagian
-3). Tab `device` juga diberi stempel waktu jalan di sel `D1` — bagian 7.
+3). Tab `device` juga diberi label `Last Update` di `D1` dan waktu jalannya di
+`D2` — bagian 7.
 
 Tab `Kontrol` beserta tombol "minta data terbaru" **sudah dipensiunkan**
 (2026-09-28): alat ini kini hanya berjalan kalau ada yang menjalankannya, jadi
@@ -225,7 +226,7 @@ sekarang hanya berjalan kalau ada yang menjalankannya.
 
 **Datanya setua ekspor terakhir.** Kalau tidak ada yang menjalankan, isi tab
 tidak berubah. Satu-satunya cara melihat kapan terakhir kali dijalankan dari
-dalam spreadsheet adalah stempel waktu di `device!D1` (bagian 7).
+dalam spreadsheet adalah stempel waktu di `device!D2` (bagian 7).
 
 **Soal client diberi akses Editor.** Editor pada spreadsheet ini berarti client
 juga bisa mengubah tab data. Itu tidak berbahaya di praktiknya: setiap tab
@@ -243,17 +244,19 @@ Satu spreadsheet, lima tab:
 transactions                    <- satu tab per tabel
 transaction_detail
 payment_proof
-device                          <- stempel waktu di sel D1
+device                          <- label dan waktu jalan di D1:D2
 device_transaction_sequence
 ```
 
-**Stempel waktu jalan.** Tab `device` hanya memakai kolom A dan B, jadi sel `D1`
-diisi waktu (WIB) saat tab itu terakhir ditulis, mis. `2026-09-28 20:56:11 WIB`.
-Itu satu-satunya penanda kapan ekspor terakhir berjalan, dan sengaja dipasang di
-tab yang kolomnya masih lapang supaya tidak menimpa data. Kalau nanti ada tabel
-lain yang punya kolom kosong, selnya ditambahkan di `RUN_STAMP_CELLS` pada
+**Stempel waktu jalan.** Tab `device` hanya memakai kolom A dan B, jadi dua sel di
+kolom D dipakai untuk keterangan: `D1` berisi judul `Last Update` (tebal) dan
+`D2` berisi waktu (WIB) saat tab itu terakhir ditulis, berlatar kuning supaya
+terlihat dari jauh — mis. `2026-09-28 21:04:08 WIB`. Itu satu-satunya penanda
+kapan ekspor terakhir berjalan, dan sengaja dipasang di tab yang kolomnya masih
+lapang supaya tidak menimpa data. Kalau nanti ada tabel lain yang punya kolom
+kosong, selnya ditambahkan di `RUN_STAMP_CELLS` pada
 `tools/export_to_google_sheets.py`. Bila suatu saat tabel `device` memakai kolom
-D, stempelnya dilewati sendiri — bukan header kolom yang tertimpa.
+D, stempelnya dilewati sendiri — bukan data yang tertimpa.
 
 Tab bawaan `Sheet1` dihapus otomatis, tetapi hanya kalau memang masih kosong.
 Tab sisa ekspor lama — `transaction_daily_sequence` dan `Kontrol` — **tidak**
@@ -268,7 +271,7 @@ keduanya sekali lewat klik kanan → *Delete* di Google Sheets.
   baca di server, dan itu keputusan terpisah yang masih terbuka.
 - **Harga pokok dan margin tidak ada**, karena tabel `item` dikecualikan.
 - **Datanya setua ekspor terakhir.** Kalau tidak ada yang menjalankan ekspor,
-  tab tetap berisi hasil jalan sebelumnya (lihat `device!D1`).
+  tab tetap berisi hasil jalan sebelumnya (lihat `device!D2`).
 - **Device pembuat nota tidak terlihat langsung.** Tabel `transactions` tidak
   punya kolom `device_id`; asal device hanya bisa dibaca dari tiga huruf pertama
   `transaction_id` (mis. `T01-`).
@@ -497,7 +500,7 @@ dipanggil adalah **python-nya langsung**, bukan `.bat`-nya: `.bat` berhenti
 menunggu tombol ditekan di akhir, dan penantian itu tidak ada yang menjawabnya
 dalam tugas otomatis. Untuk mencobanya sekarang tanpa menunggu jamnya:
 `schtasks /Run /TN "Ekspor POS ke Sheets"`, lalu lihat waktu terakhir di
-`device!D1`.
+`device!D2`.
 
 **Linux (cron).** Satu baris, tiap hari jam 08:00, keluaran dicatat ke berkas:
 

@@ -61,8 +61,9 @@ nomor nota harian yang tidak dibaca kode mana pun — juga dilewatkan sejak
    Untuk jadwal otomatis jangan pakai `.bat`-nya, karena ia berhenti menunggu
    tombol ditekan di akhir.
 
-Setiap kali ekspor selesai, tab `device` diberi stempel waktu jalan di sel `D1` —
-itu penanda kapan data terakhir disegarkan.
+Setiap kali ekspor selesai, tab `device` diberi label `Last Update` di `D1` dan
+waktu jalannya di `D2` (latar kuning) — itu penanda kapan data terakhir
+disegarkan.
 
 Dua jalur yang pernah ada sudah dipensiunkan pada 2026-09-28, dan berkasnya tidak
 ada lagi di repo ini:

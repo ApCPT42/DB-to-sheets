@@ -169,11 +169,16 @@ NUMBER_COLUMNS = {"quantity", "byte_size", "next_sequence"}
 MIN_GRID_ROWS = 20
 MIN_GRID_COLS = 4
 
-# Sel stempel waktu jalan, per tab. `device` hanya memakai dua kolom (A dan B),
-# jadi kolom D masih bebas: stempelnya tidak menimpa header maupun data. Kalau
-# nanti tabelnya memakai kolom itu, stempelnya dilewati sendiri supaya bukan
-# header yang tertimpa.
-RUN_STAMP_CELLS: dict[str, str] = {"device": "D1"}
+# Stempel waktu jalan, per tab: (sel label, sel waktunya). `device` hanya memakai
+# dua kolom (A dan B), jadi kolom D masih bebas dan stempelnya tidak menimpa
+# header maupun data. Kalau nanti tabelnya memakai kolom itu, stempelnya
+# dilewati sendiri supaya bukan data yang tertimpa.
+RUN_STAMP_LABEL = "Last Update"
+RUN_STAMP_CELLS: dict[str, tuple[str, str]] = {"device": ("D1", "D2")}
+STAMP_LABEL_FORMAT: dict[str, Any] = {"textFormat": {"bold": True}}
+STAMP_VALUE_FORMAT: dict[str, Any] = {
+    "backgroundColor": {"red": 1.0, "green": 1.0, "blue": 0.0}
+}
 STAMP_COLUMN_PIXELS = 170
 
 # Lebar kolom: setelah Google menghitung lebar pas untuk isi kolom, tiap kolom
@@ -846,8 +851,37 @@ def column_number(cell: str) -> int:
     return nomor
 
 
+def cell_row_number(cell: str) -> int:
+    """Nomor baris dari alamat selnya, dimulai dari 1: D2 -> 2."""
+    return int("".join(karakter for karakter in cell if karakter.isdigit()))
+
+
+def cell_format(sheet_id: int, cell: str, format: dict[str, Any]) -> dict[str, Any]:
+    """Satu permintaan untuk memformat satu sel saja."""
+    kolom = column_number(cell) - 1
+    baris = cell_row_number(cell) - 1
+
+    return {
+        "repeatCell": {
+            "range": {
+                "sheetId": sheet_id,
+                "startRowIndex": baris,
+                "endRowIndex": baris + 1,
+                "startColumnIndex": kolom,
+                "endColumnIndex": kolom + 1,
+            },
+            "cell": {"userEnteredFormat": format},
+            "fields": "userEnteredFormat",
+        }
+    }
+
+
 def write_run_stamp(spreadsheet, worksheet, table: str, column_count: int) -> None:
-    """Tulis waktu skrip ini dijalankan ke sel bebas milik tab ini.
+    """Tulis label dan waktu skrip ini dijalankan di sel bebas milik tab ini.
+
+    Labelnya dicetak tebal dan sel waktunya diberi latar kuning supaya terlihat
+    dari jauh, sementara selnya sengaja berada di luar kolom data agar tidak
+    menimpa header maupun isi tabel.
 
     Hanya tab yang memang punya sel bebas yang diberi stempel (lihat
     RUN_STAMP_CELLS). Kalau tabelnya sudah memakai kolom itu, stempelnya
@@ -856,23 +890,31 @@ def write_run_stamp(spreadsheet, worksheet, table: str, column_count: int) -> No
     Stempel ini murni keterangan, jadi kegagalannya hanya dicatat - tidak
     membuat ekspor dianggap gagal.
     """
-    cell = RUN_STAMP_CELLS.get(table)
+    sel = RUN_STAMP_CELLS.get(table)
 
-    if not cell:
+    if not sel:
         return
 
-    kolom = column_number(cell)
+    sel_label, sel_waktu = sel
+    kolom = column_number(sel_waktu)
 
     if kolom <= column_count:
-        log(f"  Catatan: sel stempel {table}!{cell} sudah dipakai kolom data, dilewati.")
+        log(f"  Catatan: sel stempel {table}!{sel_waktu} sudah dipakai kolom data, dilewati.")
 
         return
 
     try:
-        worksheet.update_acell(cell, timestamp())
+        worksheet.batch_update(
+            [
+                {"range": sel_label, "values": [[RUN_STAMP_LABEL]]},
+                {"range": sel_waktu, "values": [[timestamp()]]},
+            ]
+        )
         spreadsheet.batch_update(
             {
                 "requests": [
+                    cell_format(worksheet.id, sel_label, STAMP_LABEL_FORMAT),
+                    cell_format(worksheet.id, sel_waktu, STAMP_VALUE_FORMAT),
                     {
                         "updateDimensionProperties": {
                             "range": {
@@ -884,12 +926,12 @@ def write_run_stamp(spreadsheet, worksheet, table: str, column_count: int) -> No
                             "properties": {"pixelSize": STAMP_COLUMN_PIXELS},
                             "fields": "pixelSize",
                         }
-                    }
+                    },
                 ]
             }
         )
     except Exception as error:
-        log(f"  Catatan: stempel waktu di {table}!{cell} tidak bisa ditulis: {error}")
+        log(f"  Catatan: stempel waktu di {table}!{sel_waktu} tidak bisa ditulis: {error}")
 
 
 def write_tab(spreadsheet, table: str, columns: list[str], rows: list[list[Any]]) -> str:
@@ -904,7 +946,7 @@ def write_tab(spreadsheet, table: str, columns: list[str], rows: list[list[Any]]
     # Tabnya perlu cukup lebar untuk menampung stempel waktu juga (kalau ada),
     # sebab sel itu ditulis di luar kolom datanya.
     stempel = RUN_STAMP_CELLS.get(table)
-    kolom_stempel = column_number(stempel) if stempel else 0
+    kolom_stempel = column_number(stempel[1]) if stempel else 0
 
     baris_grid = max(len(rows) + 1, MIN_GRID_ROWS)
     kolom_grid = max(len(columns), kolom_stempel, MIN_GRID_COLS)
