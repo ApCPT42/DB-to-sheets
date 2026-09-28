@@ -195,7 +195,8 @@ Argumen `--auth oauth` membuat skrip masuk memakai akun Google Anda sendiri
 (bukan kunci service account) — itulah yang dipakai di komputer client, lihat
 bagian 11.2.
 
-Host yang berbasis jadwal (cron, kontainer, PaaS) memanggil skripnya langsung,
+Host yang berbasis jadwal (runner CI, cron, Task Scheduler) memanggil skripnya
+langsung,
 tanpa menu, dengan mode sekali-jalan:
 
 ```bat
@@ -530,9 +531,18 @@ kartu wajib), Koyeb (sejak Februari 2026 kartu + otorisasi $29), Fly.io, Oracle
 Cloud, Google Cloud, AWS. Yang benar-benar tidak meminta kartu justru platform
 **terjadwal**, dan pengawas ini memang hanya perlu dipanggil berkala — ia hanya
 *keluar* menghubungi Google dan Aiven, tidak pernah menerima permintaan dari
-luar. Karena itu jalur utamanya sekarang GitHub Actions (12.1), dan jalur
-kontainer dengan proses menunggu tetap didokumentasikan di 12.2 sebagai pilihan
-kalau nanti Anda sudah siap memasang kartu.
+luar. Karena itu jalur utamanya adalah GitHub Actions (12.1).
+
+**Jalur kontainer sudah dihapus** dari repo ini pada 2026-09-28. `Dockerfile`,
+`.dockerignore`, dan langkah Northflank-nya dibuang karena tidak satu pun host
+selalu-nyala gratis bisa dipakai tanpa kartu, sementara dua cara yang tersisa —
+komputer client (bagian 11) dan GitHub Actions (12.1) — tidak membutuhkannya.
+Kalau nanti kartu sudah siap, berkasnya masih bisa diambil dari riwayat git:
+
+```bash
+git log --oneline -- Dockerfile
+git show <commit>:Dockerfile > Dockerfile
+```
 
 ### 12.1 GitHub Actions: gratis, tanpa kartu, tanpa layanan baru
 
@@ -564,69 +574,10 @@ Yang perlu dilakukan sekali saja:
 3. Centang `Kontrol!B3` dari mana saja, lalu tunggu satu putaran jadwal. Kolom
    status, waktu, dan ringkasan terisi seperti biasa.
 
-### 12.2 Jalur kontainer (butuh kartu): proses yang menunggu terus
+### 12.2 Menjalankan mode terjadwal di host lain
 
-Kalau Anda memilih memasang kartu, `Dockerfile` di akar repo ini bisa dibangun di
-host kontainer mana pun. Yang berjalan di sana adalah `--watch`, bukan
-`--if-requested`, sehingga permintaan dilayani dalam hitungan detik dan bukan
-menit.
-
-Yang perlu disiapkan:
-
-- Akun host yang terhubung ke GitHub.
-- Repo ini di GitHub. **Tidak ada folder yang disalin manual**: host membangun
-  image langsung dari repo, memakai `Dockerfile` di akarnya — itulah gunanya
-  repo ini dipisah dari repo POS, yang dibangun hanyalah alat ekspor.
-- Perubahan terakhir (Dockerfile, mode `--if-requested`, dukungan variabel
-  lingkungan) harus sudah ter-push ke branch yang dipilih, karena yang dibangun
-  adalah isi repo — bukan folder di komputer.
-- `venv` Windows tidak disalin dan tidak dibutuhkan. `tools/requirements-export.txt`
-  sekarang sudah memuat `psycopg` dan `python-dotenv` sekaligus, jadi host cukup
-  memasang berkas itu.
-
-### 12.3 Langkah membuat service di Northflank
-
-1. Masuk Northflank, buat project baru (mis. `pos-ekspor`).
-2. **Create service** → sumber **GitHub** → pilih repo ini dan branch `main`.
-3. Isi bagian build:
-   - **Build context**: akar repo ini (`.`) — di banyak formulir cukup dibiarkan
-     kosong atau diisi `/`.
-   - **Dockerfile**: `Dockerfile`, tepat di akar repo.
-   - Jenis: **Service** (proses yang berjalan terus), **bukan** Job.
-   - Port publik **tidak perlu**: pengawas ini tidak melayani HTTP, ia hanya
-     membaca spreadsheet dan database.
-4. Ukuran instance: yang terkecil sudah lebih dari cukup
-   (`nf-compute-10`: 0.1 vCPU, 256 MB).
-5. Isi variabel lingkungan (di Northflank: bagian *Environment*/*Secrets*),
-   ketiganya sebagai secret:
-
-   | Variabel | Isi |
-   | --- | --- |
-   | `DATABASE_URL` | koneksi PostgreSQL, boleh pengguna read-only |
-   | `GOOGLE_SPREADSHEET_ID` | ID atau link spreadsheet tujuan |
-   | `GOOGLE_SERVICE_ACCOUNT_JSON` | seluruh isi `service-account.json`, ditempel apa adanya |
-
-6. Deploy, lalu buka **Logs**. Yang harus terlihat:
-
-   ```
-   Berkas /app/.env tidak ada - memakai variabel lingkungan yang sudah diisi.
-   Masuk sebagai  : miaw-38@pos-21733.iam.gserviceaccount.com (service-account)
-   Kredensial     : GOOGLE_SERVICE_ACCOUNT_JSON (variabel lingkungan)
-   Database       : pg-e5b9d28-pos-21733.l.aivencloud.com:20806/DBengkulu
-   Spreadsheet    : Shadow DB (...)
-   Diperiksa setiap 60 detik.
-   ```
-
-7. Uji dari spreadsheet: centang `Kontrol!B3`. Paling lambat satu menit kemudian
-   baris *Status* dan *Waktu* terisi, dan isi tab lain sudah data terbaru.
-8. Aiven: buka **Allowed IP addresses**. Host PaaS tidak punya IP tetap, jadi
-   biarkan daftar itu **kosong**. Kalau Aiven menolak koneksi dari host ini,
-   permintaannya gagal dan pesannya muncul di baris *Status*.
-
-### 12.4 Kalau ingin lebih hemat lagi: cron, bukan proses menunggu
-
-Host terjadwal mana pun bisa memakai mode sekali-jalan: ubah perintahnya menjadi
-`--if-requested` dan atur jadwalnya (mis. tiap 5 menit).
+Host terjadwal mana pun bisa memakai mode sekali-jalan: perintahnya
+`--if-requested`, lalu diatur jadwalnya (mis. tiap 5 menit).
 
 Bedanya dengan pengawas: prosesnya tidak menunggu, hanya bangun saat jadwalnya
 tiba. Kalau kotaknya belum dicentang, skrip keluar tanpa menyentuh Google Sheets;
@@ -637,16 +588,17 @@ satu interval, bukan di bawah satu menit.
 python tools/export_to_google_sheets.py --if-requested
 ```
 
-Mode inilah yang dipakai GitHub Actions di 12.1; host terjadwal lain seperti
-Cloud Run + Cloud Scheduler atau cron di VPS memakainya dengan cara yang sama.
+Mode inilah yang dipakai GitHub Actions di 12.1. Task Scheduler di komputer yang
+menyala terus dan cron di VPS memakainya dengan cara yang sama; yang berbeda
+hanya jadwalnya. Tidak ada berkas di repo ini yang perlu diubah untuk itu.
 
-### 12.5 Batas yang perlu disadari
+### 12.3 Batas yang perlu disadari
 
 - **Jeda GitHub Actions 5-15 menit, bukan 60 detik.** Cron GitHub tidak menerima
   jadwal lebih rapat dari lima menit, dan saat servernya sibuk jadwalnya bisa
   terlambat. Untuk sebuah tombol "minta data terbaru" itu biasanya tidak masalah;
-  kalau client butuh kesegaran detik, jalur kontainer di 12.2 atau komputer yang
-  menyala terus adalah jawabannya.
+  kalau client butuh kesegaran detik, jawabannya pengawas `--watch` di komputer
+  yang menyala terus (bagian 11.3).
 - **Jadwal mati kalau repo 60 hari tanpa commit.** GitHub mematikan workflow
   terjadwal secara diam-diam di repo publik yang menganggur; itu yang dijaga
   `keepalive.yml`. Kalau ternyata commit bot tidak dihitung sebagai aktivitas,
@@ -655,18 +607,22 @@ Cloud Run + Cloud Scheduler atau cron di VPS memakainya dengan cara yang sama.
   dijadikan privat, jatahnya 2.000 menit/bulan — jadwal tiap 5 menit akan
   menghabiskannya, jadi ubah `cron` di `refresh-sheets.yml` menjadi tiap 30 menit
   (jatahnya jadi sekitar 480 menit sebulan).
-- Paketnya **portabel**: kalau nanti berpindah host, yang berubah hanya cara
-  ia dijalankan. Image yang sama bisa dipakai `docker run` di VPS mana pun, atau
-  tanpa kontainer cukup `python tools/export_to_google_sheets.py --watch` plus
-  `systemd`. Kode dan kredensialnya tidak berubah.
+- Paketnya **portabel**: kalau nanti berpindah host, yang berubah hanya cara ia
+  dijalankan — cukup `python tools/export_to_google_sheets.py --watch` plus
+  `systemd` atau Task Scheduler, atau mode terjadwal di 12.2. Kode dan
+  kredensialnya tidak berubah.
 
-### 12.6 Keamanan
+### 12.4 Keamanan
 
 - `GOOGLE_SERVICE_ACCOUNT_JSON` adalah **kredensial penulis** untuk setiap
   spreadsheet yang dibagikan ke service account itu. Simpan sebagai secret di
-  platform, jangan di `Dockerfile`, jangan di repo.
-- `.dockerignore` sengaja mengecualikan `.env` dan `.secrets/` supaya kredensial
-  lokal tidak ikut terbawa ke dalam image.
+  GitHub (Settings → Secrets and variables → Actions), jangan pernah di repo.
+- **Dua berkas di repo ini sengaja kosong (0 byte):** `.env` dan
+  `.secrets/service-account.json`. Keduanya hanya penanda susunan berkas. Karena
+  sudah terlacak git, `.gitignore` tidak lagi melindungi dua path itu — isi
+  aslinya tinggal di komputer dan **tidak boleh** ditempel ke sana lalu di-commit;
+  repo ini publik. Berkas kosong diperlakukan sebagai "belum diisi", jadi pesan
+  galatnya tetap menjelaskan ke mana kuncinya harus diletakkan.
 - Kalau nanti yang menjalankan pengawas adalah client, arah yang lebih aman tetap
   `--auth oauth` di komputernya sendiri (bagian 11.2): kunci penulis tidak perlu
   berpindah tangan.

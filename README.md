@@ -25,7 +25,6 @@ hanya proses kecil ini; POS tetap berjalan seperti sekarang.
 | `GOOGLE_SHEETS_EXPORT.md` | Panduan lengkap: penyiapan Google, tombol client, mode client, menjalankan di cloud |
 | `.github/workflows/refresh-sheets.yml` | Pengawas terjadwal di GitHub Actions — melayani tombol Kontrol tanpa kartu kredit |
 | `.github/workflows/keepalive.yml` | Dua commit kosong sebulan, supaya GitHub tidak mematikan jadwalnya |
-| `Dockerfile`, `.dockerignore` | Untuk host yang memakai proses menunggu terus (VPS, Cloud Run, PaaS) |
 | `.env`, `.secrets/` | Konfigurasi dan kredensial — **tidak pernah masuk git** |
 
 ## Mulai dari nol di mesin baru
@@ -68,7 +67,10 @@ nomor nota harian yang tidak dibaca kode mana pun — juga dilewatkan sejak
 
 Hampir semua platform yang menjalankan proses selalu-nyala gratis (Northflank,
 Koyeb, Fly.io, Oracle, Google Cloud, AWS) meminta metode pembayaran, jadi jalur
-GitHub Actions inilah yang dipakai. Pengawas ini hanya *keluar* menghubungi
+GitHub Actions inilah yang dipakai. **Jalur kontainer sudah dihapus** pada
+2026-09-28 — `Dockerfile`, `.dockerignore`, dan langkah Northflank-nya dibuang
+karena tidak satu pun host selalu-nyala gratis bisa dipakai tanpa kartu;
+berkasnya masih bisa diambil dari riwayat git kalau nanti kartu sudah siap. Pengawas ini hanya *keluar* menghubungi
 Google dan Aiven, jadi tidak perlu menerima kunjungan dari luar — dan itu yang
 membuat pola terjadwal cukup.
 
