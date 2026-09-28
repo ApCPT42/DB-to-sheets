@@ -93,7 +93,13 @@ referensi yang tidak berubah harian.
   ditambah 18 piksel supaya huruf terakhir tidak menempel garis kolom; kolom yang
   sudah lapang (di atas 220 piksel, mis. kolom catatan) dibiarkan apa adanya.
   Contoh hasil sungguhan di tab `transactions`: `107, 81, 143, 101, 126, 125,
-  118, 101, 125, 251` piksel untuk sepuluh kolomnya.
+  118, 101, 125, 251` piksel untuk sepuluh kolomnya. Perapian itu dibatasi ke
+  sel yang berisi data: latar gelap hanya selebar kolom data, format angka hanya
+  setinggi baris data, dan seluruh sel di luar data dikembalikan ke tampilan
+  baku setiap kali ekspor. Tanpa itu, tab `device` (dua kolom) dan
+  `device_transaction_sequence` (tiga kolom) terlihat punya kolom tambahan yang
+  ikut dirapikan, dan sisa format dari jalan sebelumnya tetap menempel di baris
+  yang sudah kosong.
 - **Kalau perapian tampilan gagal, data tetap tersimpan.** Penulisan data dan
   perapian adalah dua permintaan terpisah, dan kegagalan penambahan lebar kolom
   hanya dicatat sebagai catatan — bukan alasan untuk menggagalkan ekspor.

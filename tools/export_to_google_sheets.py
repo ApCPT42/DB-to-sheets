@@ -716,12 +716,55 @@ def get_or_create_worksheet(spreadsheet, title: str, min_rows: int, min_cols: in
         )
 
 
-def styling_requests(sheet_id: int, columns: list[str], row_count: int) -> list[dict[str, Any]]:
-    """Permintaan batch: header, bekukan baris pertama, lebar kolom, format angka."""
+def clear_format(
+    sheet_id: int, start_row: int, end_row: int, start_col: int, end_col: int
+) -> dict[str, Any]:
+    """Satu permintaan untuk mengembalikan format satu rentang ke tampilan baku.
+
+    `fields: userEnteredFormat` tanpa isi berarti "kosongkan formatnya", jadi
+    latar gelap dan format angka yang menempel di sel kosong ikut hilang.
+    """
+    return {
+        "repeatCell": {
+            "range": {
+                "sheetId": sheet_id,
+                "startRowIndex": start_row,
+                "endRowIndex": end_row,
+                "startColumnIndex": start_col,
+                "endColumnIndex": end_col,
+            },
+            "cell": {},
+            "fields": "userEnteredFormat",
+        }
+    }
+
+
+def styling_requests(
+    sheet_id: int,
+    columns: list[str],
+    row_count: int,
+    grid_rows: int,
+    grid_cols: int,
+) -> list[dict[str, Any]]:
+    """Permintaan batch: header, bekukan baris pertama, format angka, bersihkan sisa.
+
+    Setiap perapian dibatasi ke sel yang berisi data, lalu sel di luar data
+    dikembalikan ke tampilan baku. Keduanya diperlukan sekaligus: tanpa batas,
+    Google mewarnai seluruh baris header dan memberi format angka sampai dasar
+    grid, sehingga tab yang datanya sedikit tetap terlihat punya banyak sel
+    terformat; tanpa pembersihan, sisa format dari jalan sebelumnya — saat
+    datanya masih lebih panjang — ikut menempel di baris yang sekarang kosong.
+    """
     requests: list[dict[str, Any]] = [
         {
             "repeatCell": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1},
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": 0,
+                    "endRowIndex": 1,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": len(columns),
+                },
                 "cell": {"userEnteredFormat": HEADER_FORMAT},
                 "fields": "userEnteredFormat.textFormat,userEnteredFormat.backgroundColor",
             }
@@ -734,7 +777,17 @@ def styling_requests(sheet_id: int, columns: list[str], row_count: int) -> list[
         },
     ]
 
-    # Format angka hanya menyentuh baris data, supaya judul kolom tetap teks.
+    # Sel di luar data: semua kolom di kanan kolom terakhir, lalu semua baris di
+    # bawah baris terakhir. Rentang yang tidak berisi apa-apa dilewati, sebab
+    # Google menolak rentang yang titik awalnya sama dengan titik akhirnya.
+    if grid_cols > len(columns):
+        requests.append(clear_format(sheet_id, 0, grid_rows, len(columns), grid_cols))
+
+    if grid_rows > row_count + 1:
+        requests.append(clear_format(sheet_id, row_count + 1, grid_rows, 0, len(columns)))
+
+    # Format angka hanya menyentuh baris data, supaya judul kolom tetap teks dan
+    # baris kosong di bawahnya tidak ikut berformat.
     if row_count > 0:
         for index, kolom in enumerate(columns):
             if kolom in MONEY_COLUMNS:
@@ -750,6 +803,7 @@ def styling_requests(sheet_id: int, columns: list[str], row_count: int) -> list[
                         "range": {
                             "sheetId": sheet_id,
                             "startRowIndex": 1,
+                            "endRowIndex": row_count + 1,
                             "startColumnIndex": index,
                             "endColumnIndex": index + 1,
                         },
@@ -852,19 +906,25 @@ def write_tab(spreadsheet, table: str, columns: list[str], rows: list[list[Any]]
     stempel = RUN_STAMP_CELLS.get(table)
     kolom_stempel = column_number(stempel) if stempel else 0
 
+    baris_grid = max(len(rows) + 1, MIN_GRID_ROWS)
+    kolom_grid = max(len(columns), kolom_stempel, MIN_GRID_COLS)
+
     # Dibersihkan dulu supaya kalau isi lama lebih panjang, sisa barisnya tidak
     # tertinggal di bawah data baru.
     worksheet.clear()
-    worksheet.resize(
-        rows=max(len(rows) + 1, MIN_GRID_ROWS),
-        cols=max(len(columns), kolom_stempel, MIN_GRID_COLS),
-    )
+    worksheet.resize(rows=baris_grid, cols=kolom_grid)
 
     # Satu panggilan untuk header dan seluruh data: tidak ada keadaan setengah
     # jadi kalau jaringan putus di tengah jalan.
     worksheet.update([columns, *rows], "A1")
 
-    spreadsheet.batch_update({"requests": styling_requests(worksheet.id, columns, len(rows))})
+    spreadsheet.batch_update(
+        {
+            "requests": styling_requests(
+                worksheet.id, columns, len(rows), baris_grid, kolom_grid
+            )
+        }
+    )
     write_run_stamp(spreadsheet, worksheet, table, len(columns))
     pad_columns(spreadsheet, worksheet, len(columns))
 
