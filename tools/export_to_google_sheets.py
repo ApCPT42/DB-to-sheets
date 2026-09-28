@@ -196,6 +196,20 @@ OAUTH_CLIENT_CANDIDATES = (
 
 DEFAULT_OAUTH_TOKEN_PATH = PROJECT_DIR / ".secrets" / "oauth-token.json"
 
+
+def is_filled(path: Path) -> bool:
+    """True kalau berkasnya ada dan isinya tidak kosong.
+
+    Repo ini ikut memuat `.env` dan `.secrets/service-account.json` sebagai
+    penanda kosong supaya susunan berkasnya terlihat. Berkas kosong seperti itu
+    diperlakukan sama dengan berkas yang tidak ada, supaya yang muncul adalah
+    petunjuk meletakkan kunci, bukan galat JSON yang membingungkan.
+    """
+    try:
+        return path.is_file() and path.stat().st_size > 0
+    except OSError:
+        return False
+
 # Format angka. Google Sheets memakai sintaks pola sendiri; "Rp" dalam tanda
 # kutip diperlakukan sebagai teks, sehingga tampil sebagai Rp 141.000.
 MONEY_PATTERN = '"Rp" #,##0'
@@ -310,10 +324,17 @@ def credentials_path() -> Path:
                 f"GOOGLE_SERVICE_ACCOUNT_FILE menunjuk ke berkas yang tidak ada:\n  {path}"
             )
 
+        if not is_filled(path):
+            raise ExportError(
+                f"GOOGLE_SERVICE_ACCOUNT_FILE menunjuk ke berkas yang masih kosong:\n"
+                f"  {path}\n"
+                "  Isi berkas itu dengan kunci JSON dari service account."
+            )
+
         return path
 
     for candidate in CREDENTIAL_CANDIDATES:
-        if candidate.is_file():
+        if is_filled(candidate):
             return candidate
 
     dicoba = "\n".join(f"  - {path}" for path in CREDENTIAL_CANDIDATES)
@@ -321,6 +342,7 @@ def credentials_path() -> Path:
     raise ExportError(
         "Berkas service account Google tidak ditemukan. Dicari di:\n"
         f"{dicoba}\n"
+        "  Berkas kosong di lokasi itu juga dianggap belum diisi.\n"
         "  Cara membuatnya ada di GOOGLE_SHEETS_EXPORT.md, langkah 1-3.\n"
         "  Setelah berkasnya ada, letakkan di salah satu lokasi di atas, atau\n"
         "  isi GOOGLE_SERVICE_ACCOUNT_FILE di .env dengan path lengkapnya."
@@ -417,10 +439,16 @@ def oauth_client_path() -> Path:
                 f"GOOGLE_OAUTH_CLIENT_FILE menunjuk ke berkas yang tidak ada:\n  {path}"
             )
 
+        if not is_filled(path):
+            raise ExportError(
+                f"GOOGLE_OAUTH_CLIENT_FILE menunjuk ke berkas yang masih kosong:\n"
+                f"  {path}"
+            )
+
         return path
 
     for candidate in OAUTH_CLIENT_CANDIDATES:
-        if candidate.is_file():
+        if is_filled(candidate):
             return candidate
 
     dicoba = "\n".join(f"  - {path}" for path in OAUTH_CLIENT_CANDIDATES)
@@ -444,7 +472,7 @@ def oauth_token_path() -> Path:
 def oauth_login_state() -> str:
     token = oauth_token_path()
 
-    if token.is_file():
+    if is_filled(token):
         return f"sudah pernah masuk, token di {token}"
 
     return "belum pernah masuk: peramban akan terbuka sekali untuk minta izin"
