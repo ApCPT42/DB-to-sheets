@@ -11,8 +11,9 @@ sana hanyalah program ini — server POS tetap berjalan seperti sekarang.
 
 Alasan alat ini ada: client tidak perlu masuk ke console database, tetapi tetap
 perlu melihat data penjualan — dan kadang perlu meminta data terbaru tanpa
-menunggu pemilik. Alat ini juga bisa dijalankan di komputer client sendiri, tanpa
-kredensial database yang bisa menulis; itu yang dijelaskan di bagian 11.
+menunggu pemilik. Sejak 2026-09-28 program ini **diserahkan ke client** untuk
+dijalankan di komputernya sendiri, bersama berkas kunci Google-nya; akses
+database yang diserahkan tetap read-only. Rinciannya di bagian 11.
 
 **Status: sudah dijalankan sungguhan.** Ekspor pertama berhasil ke spreadsheet
 `Shadow DB` (`1kB02M_4asD38-7Qna6N9cSws5EHpP3VglXLw2nrHC0A`) pada 2026-09-28:
@@ -333,9 +334,13 @@ dilaporkan sekaligus.
 - Berkas kunci JSON adalah **kredensial penuh**: siapa pun yang memilikinya bisa
   menulis ke setiap spreadsheet yang dibagikan ke service account itu. Jangan
   dikirim lewat chat, jangan ditaruh di repo.
-- **Jangan serahkan kunci JSON itu ke client.** Di mode client (bagian 11) yang
-  diserahkan adalah `DATABASE_URL` read-only dan `oauth-client.json`, bukan kunci
-  penulis. Kalau client perlu menjalankan ekspor, pakai `--auth oauth`.
+- **Kunci penulis itu memang diserahkan ke client, dan itu keputusan yang
+  disadari** (2026-09-28, bagian 11.2). Yang perlu diingat: hak yang berpindah
+  bukan hanya "menulis ke `Shadow DB`", melainkan menulis ke **setiap**
+  spreadsheet yang dibagikan ke service account itu. Jadi jangan membagikan
+  spreadsheet lain — apalagi spreadsheet pribadi — ke email service account yang
+  sama. Kalau nanti client berhenti memakai program ini, cabut kuncinya di Cloud
+  Console (tab **Keys** → hapus) dan buat kunci baru kalau masih dibutuhkan.
 - Kalau kunci itu bocor: buka Cloud Console, hapus kuncinya, buat kunci baru, dan
   ganti berkasnya. Tidak ada data POS yang ikut bocor karena itu — yang bocor
   hanya kemampuan menulis ke spreadsheet.
@@ -353,8 +358,14 @@ Konsekuensi yang disadari dan diterima: pengguna read-only itu bisa membaca
 tabel, termasuk `item.cost_amount` dan hash PIN di `worker`. Karena itu langkah
 11.1 di bawah sebaiknya dibatasi ke lima tabel yang memang diekspor.
 
+Di hari yang sama pemilik POS juga memutuskan **program ini beserta berkas kunci
+service account-nya dikirim langsung ke client**, jadi client menjalankannya
+sendiri di komputernya. Konsekuensinya dua: client memegang kredensial penulis
+Google (lihat 11.2), dan jalur cloud di bagian 12 menjadi tidak diperlukan
+selama komputer client hidup pada jam yang diinginkan.
+
 Dengan mode ini **komputer pengelola tidak perlu menyala**. Yang perlu hidup
-adalah komputer yang menjalankan `.bat`, dan itu bisa komputer client sendiri.
+adalah komputer yang menjalankan `.bat`, dan itu komputer client sendiri.
 
 ### 11.1 Buat pengguna database read-only
 
@@ -394,18 +405,31 @@ hak apa yang benar-benar dimilikinya.
 DATABASE_URL=postgres://pos_pembaca:<password>@pg-e5b9d28-pos-21733.l.aivencloud.com:20806/DBengkulu?sslmode=require
 ```
 
-### 11.2 Kredensial Google: pilih login sendiri, jangan kunci service account
+### 11.2 Kredensial Google: kunci penulis atau login sendiri
 
-Dua pilihan, dan yang pertama lebih baik untuk client:
+**Yang dipakai sekarang: kunci service account ikut dikirim ke client**
+(keputusan pemilik POS, 2026-09-28). Kolom kanan tetap didokumentasikan karena
+itulah jalur pengganti kalau nanti ingin kunci penulis ditarik kembali dari
+komputer client.
 
-| | Login akun Google sendiri (`--auth oauth`) | Berkas kunci service account |
+| | Berkas kunci service account (**dipakai sekarang**) | Login akun Google sendiri (`--auth oauth`) |
 | --- | --- | --- |
-| Yang dipegang client | `oauth-client.json` (bukan rahasia; cuma penanda aplikasi) | kunci JSON penulis |
-| Cara masuk | peramban terbuka sekali, lalu tersimpan | otomatis dari berkas |
-| Kalau bocor | tidak bisa dipakai tanpa persetujuan akun Google client | siapa pun bisa menulis ke **setiap** spreadsheet milik service account itu |
-| Syarat di Google | spreadsheet dibagikan ke **email Google client** | spreadsheet dibagikan ke email service account |
+| Yang dipegang client | kunci JSON penulis | `oauth-client.json` (bukan rahasia; cuma penanda aplikasi) |
+| Cara masuk | otomatis dari berkas, tidak ada langkah tambahan | peramban terbuka sekali, lalu tersimpan |
+| Kalau bocor | siapa pun bisa menulis ke **setiap** spreadsheet milik service account itu | tidak bisa dipakai tanpa persetujuan akun Google client |
+| Syarat di Google | spreadsheet dibagikan ke email service account | spreadsheet dibagikan ke **email Google client** |
 
-Langkah OAuth, sekali saja:
+Dua hal yang membuat jalur ini tetap terkendali:
+
+1. **Kuncinya tidak masuk git di kedua sisi.** `.gitignore` repo ini mengabaikan
+   `.secrets/` beserta pola nama unduhan Google, dan salinan yang pernah ada di
+   repo POS sudah dihapus. Berkasnya dikirim **di luar git** — bukan lewat repo,
+   bukan lewat chat grup; sebaiknya sebagai arsip berpassword atau tautan yang
+   bisa kedaluwarsa, dengan catatan bahwa berkas itu adalah kredensial.
+2. **Database-nya tetap read-only.** Yang berpindah tangan hanya hak tulis ke
+   Google Sheets; client tetap tidak bisa mengubah data POS (11.1 dan 11.4).
+
+Langkah OAuth (hanya kalau ingin memakai kolom kanan), sekali saja:
 
 1. Di Google Cloud project yang sama, buka **APIs & Services → Credentials →
    Create credentials → OAuth client ID**, pilih jenis **Desktop app**.
@@ -421,7 +445,7 @@ Langkah OAuth, sekali saja:
    di komputer yang punya, lalu salin `oauth-token.json` ke sana bersama
    kunci-kunci lain.
 
-Untuk memakai mode ini, tambahkan di `.env`:
+Untuk beralih ke model itu, tambahkan di `.env`:
 
 ```env
 GOOGLE_AUTH_MODE=oauth
@@ -431,18 +455,35 @@ GOOGLE_AUTH_MODE=oauth
 
 ### 11.3 Yang perlu ada di komputer client
 
+**Yang dikirim ke client**, dan ini dua paket terpisah:
+
+1. **Seluruh isi folder repo ini**, kecuali `venv\` dan `.env` (dua-duanya
+   diabaikan git, jadi menyalin dari git memang tidak membawanya; `venv` bisa
+   dibuat ulang di komputer client, dan lebih baik begitu supaya jalan di sana).
+2. **Dua berkas rahasia, di luar git:** `.env` berisi `DATABASE_URL` read-only
+   (11.1) dan `GOOGLE_SPREADSHEET_ID` spreadsheet tujuan, serta
+   `.secrets\service-account.json` — kunci penulis dari 4.1 nomor 5, atau kunci
+   yang sedang dipakai di mesin pengelola.
+
+Di komputer client:
+
 1. **Python 3.11 atau lebih baru**, dipasang dari <https://www.python.org/> dengan
    **Add python.exe to PATH** dicentang saat pemasangan.
-2. **Salinan folder repo ini.** Aplikasi POS tidak perlu ada di komputer client —
-   yang disalin hanya folder ini, tanpa `venv` (nomor 4). Yang wajib ada:
-   `Export ke Google Sheets.bat` di akar folder, dan `tools\`
-   berisi `export_to_google_sheets.py` beserta `requirements-export.txt`.
+2. **Salinan folder repo ini** (paket 1 di atas). Aplikasi POS tidak perlu ada di
+   komputer client. Yang wajib ada: `Export ke Google Sheets.bat` di akar folder,
+   dan `tools\` berisi `export_to_google_sheets.py` beserta
+   `requirements-export.txt`.
 3. **`.env` di akar folder berisi dua hal:** `DATABASE_URL` read-only dari 11.1
-   dan `GOOGLE_SPREADSHEET_ID` spreadsheet tujuan. Kredensial Google diletakkan
-   di `.secrets\` (11.2).
-4. **Periksa sekali:** jalankan `.bat` pilihan **3**. Kalau keluarnya menyebut
-   `Pengguna database : pos_pembaca`, `Hak tulis : tidak ada (read-only)`, dan
-   semua tab terbaca, mesin client siap.
+   dan `GOOGLE_SPREADSHEET_ID` spreadsheet tujuan. **Berkas kunci**
+   `service-account.json` diletakkan di `.secrets\` di akar folder yang sama
+   (lokasi pertama yang dicari alat ini — lihat 4.3; kalau foldernya belum ada,
+   buat dulu). Jangan ditaruh di lokasi lain di dalam folder itu.
+4. **Periksa sekali:** jalankan `.bat` pilihan **3**. Yang diharapkan muncul:
+   `Cara masuk Google : service-account`, `Mesin Google :
+   miaw-38@pos-21733.iam.gserviceaccount.com`, `Pengguna database :
+   pos_pembaca`, dan `Hak tulis : tidak ada (read-only)`. Kalau semua itu benar
+   dan semua tab terbaca, mesin client siap. Kalau `Mesin Google` menunjuk email
+   yang tidak dikenal, berarti berkas kunci yang terpasang bukan yang dimaksud.
 5. **Biarkan hidup:** jalankan `.bat` pilihan **4**. Supaya nyala sendiri,
    daftarkan di **Task Scheduler** komputer client dengan pemicu *At log on* dan
    argumen `4`. Kalau komputer client dimatikan di luar jam kerja, permintaan di
@@ -478,6 +519,10 @@ lewat cron atau Task Scheduler Linux).
 
 Tujuan bagian ini: permintaan client tetap dilayani tanpa **komputer mana pun
 milik pengelola menyala**, dan tanpa kartu kredit.
+
+Bagian ini tidak diperlukan kalau program sudah dijalankan di komputer client
+sendiri (bagian 11) dan komputer itu memang hidup pada jam yang diinginkan.
+Isinya untuk kondisi sebaliknya: tidak ada komputer yang boleh dibiarkan menyala.
 
 Urutannya penting. Hampir semua platform yang menjalankan proses **selalu
 nyala** gratis kini meminta metode pembayaran: Northflank (Sandbox gratis tapi

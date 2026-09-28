@@ -72,8 +72,30 @@ GitHub Actions inilah yang dipakai. Pengawas ini hanya *keluar* menghubungi
 Google dan Aiven, jadi tidak perlu menerima kunjungan dari luar — dan itu yang
 membuat pola terjadwal cukup.
 
-Dua cara masuk Google yang didukung: `--auth service-account` (bawaan; mesin
-pengelola memakai berkas kunci JSON) dan `--auth oauth` (client masuk dengan akun
-Google-nya sendiri, jadi tidak ada kunci penulis yang berpindah tangan).
+Dua cara masuk Google yang didukung: `--auth service-account` (bawaan; **dipakai
+sekarang**, memakai berkas kunci JSON yang ikut dikirim ke client) dan
+`--auth oauth` (client masuk dengan akun Google-nya sendiri, jadi tidak ada kunci
+penulis yang berpindah tangan — jalur pengganti kalau kunci itu nanti ingin
+ditarik kembali).
+
+## Penyerahan ke client
+
+Sejak **2026-09-28** program ini diserahkan ke client untuk dijalankan di
+komputernya sendiri, **bersama berkas kunci service account-nya**. Paket yang
+dikirim ada dua: folder ini (tanpa `venv\`, dan tanpa `.env` — keduanya memang
+tidak ikut git), lalu dua berkas rahasia yang dikirim terpisah di luar git —
+`.env` berisi `DATABASE_URL` **read-only** dan ID spreadsheet, serta
+`.secrets\service-account.json`.
+
+Yang berpindah tangan hanya hak tulis ke Google Sheets; isi database tetap
+terbaca lewat pengguna read-only, dan alat ini sendiri hanya menjalankan
+`SELECT`. Yang perlu disadari: kunci itu berlaku untuk **setiap** spreadsheet
+yang dibagikan ke service account tersebut — jadi jangan membagikan spreadsheet
+lain ke email itu, dan cabut kuncinya kalau client berhenti memakainya.
+
+Di komputer client: pilihan **3** untuk memeriksa, pilihan **1** untuk ekspor
+sekali jalan, pilihan **4** untuk memantau tombol. Daftarkan pilihan 4 di Task
+Scheduler dengan pemicu *At log on* supaya nyala sendiri; selama komputer client
+hidup, jalur cloud di bagian 12 panduan tidak diperlukan.
 
 Dokumentasi lengkapnya ada di [`GOOGLE_SHEETS_EXPORT.md`](GOOGLE_SHEETS_EXPORT.md).
