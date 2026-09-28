@@ -154,7 +154,7 @@ GOOGLE_SPREADSHEET_ID=https://docs.google.com/spreadsheets/d/<ID>/edit
 # GOOGLE_SPREADSHEET_TITLE=Shadow DB
 
 # Opsional: lokasi berkas kunci kalau tidak diletakkan di lokasi baku.
-# GOOGLE_SERVICE_ACCOUNT_FILE=D:\pos-sheets-sync\.secrets\service-account.json
+# GOOGLE_SERVICE_ACCOUNT_FILE=D:\DB-to-sheets\.secrets\service-account.json
 
 # Opsional: email yang otomatis diberi akses Editor ke spreadsheet ini.
 # Isi dengan email client kalau Anda ingin alat ini yang membagikannya.
@@ -426,7 +426,7 @@ Untuk memakai mode ini, tambahkan di `.env`:
 ```env
 GOOGLE_AUTH_MODE=oauth
 # Opsional, kalau berkasnya tidak diletakkan di lokasi baku:
-# GOOGLE_OAUTH_CLIENT_FILE=D:\pos-sheets-sync\.secrets\oauth-client.json
+# GOOGLE_OAUTH_CLIENT_FILE=D:\DB-to-sheets\.secrets\oauth-client.json
 ```
 
 ### 11.3 Yang perlu ada di komputer client

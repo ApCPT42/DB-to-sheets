@@ -1,4 +1,6 @@
-# pos-sheets-sync
+# DB-to-sheets
+
+Repo: <https://github.com/ApCPT42/DB-to-sheets>
 
 Menyalin tabel **dinamis** POS dari database PostgreSQL (Aiven) ke satu
 spreadsheet Google: satu tab per tabel, isi setiap tab diganti setiap kali
