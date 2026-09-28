@@ -1,0 +1,28 @@
+# Rahasia tidak boleh pernah masuk repo ini.
+#
+# Repo ini memegang dua kredensial paling sensitif dari seluruh proyek: koneksi
+# database dan kunci service account Google (yang bisa menulis ke setiap
+# spreadsheet yang dibagikan ke akun itu). Karena itu aturannya sengaja
+# berlapis: satu untuk lokasi yang dipakai sehari-hari, satu lagi sebagai jaring
+# pengaman kalau berkasnya tersimpan di tempat yang salah.
+
+# Konfigurasi dan kredensial yang dipakai skrip.
+.env
+.env.*
+!.env.example
+.secrets/
+oauth-client.json
+oauth-token.json
+
+# Kunci service account Google dalam bentuk apa pun. Nama berkas unduhan Google
+# berpola <project-id>-<12 karakter heksadesimal>.json.
+*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].json
+*service-account*.json
+*.pem
+*.key
+
+# Lingkungan Python dan berkas hasil menjalankan skrip.
+venv/
+__pycache__/
+*.pyc
+*.log

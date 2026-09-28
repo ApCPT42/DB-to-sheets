@@ -1,0 +1,14 @@
+# Dependensi khusus tools/export_to_google_sheets.py.
+#
+# Dipisahkan dari requirements.txt backend supaya server POS tidak ikut memasang
+# pustaka Google hanya untuk sebuah alat ekspor yang dijalankan sesekali.
+# Versi dipatok agar perilakunya tidak berubah tanpa sengaja.
+#
+# `psycopg` dan `python-dotenv` ikut di sini supaya berkas ini cukup untuk host
+# yang hanya menjalankan alat ekspor (kontainer, PaaS, cron cloud) tanpa memasang
+# seluruh Django. Versinya sengaja disamakan dengan requirements.txt backend.
+gspread==6.2.1
+google-auth==2.58.1
+google-auth-oauthlib==1.4.1
+psycopg[binary]==3.3.4
+python-dotenv==1.2.3

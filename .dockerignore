@@ -1,0 +1,14 @@
+# Konteks build kontainer hanya perlu folder tools/, tetapi builder tetap
+# menerima seluruh isi repo lebih dulu. Yang dikecualikan:
+#
+# - kredensial (.env, .secrets/): tidak boleh ikut terbawa ke dalam image;
+#   di host cloud isinya diberikan sebagai variabel lingkungan.
+# - venv/ dari Windows: tidak berguna di Linux dan ukurannya besar.
+# - berkas hasil pengujian lokal.
+venv/
+.env
+.env.*
+.secrets/
+__pycache__/
+*.pyc
+*.log

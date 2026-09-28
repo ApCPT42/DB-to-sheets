@@ -1,0 +1,12 @@
+# Aturan line ending repo ini.
+#
+# `.bat` wajib CRLF di mana pun berkasnya di-checkout. Alasannya bukan selera:
+# cmd.exe salah membaca label dan blok `if (` kalau berkasnya LF, gejalanya
+# error membingungkan seperti ". was unexpected at this time." — dan itu terjadi
+# di mesin yang meng-clone tanpa core.autocrlf.
+*.bat text eol=crlf
+
+# Dockerfile memakai "\" sebagai penyambung baris (di sana ada blok ENV). Kalau
+# berkasnya ter-checkout dengan CRLF, Docker membacanya sebagai dua instruksi
+# dan buildnya gagal dengan pesan yang membingungkan. Dipaksa LF di mana pun.
+Dockerfile text eol=lf
