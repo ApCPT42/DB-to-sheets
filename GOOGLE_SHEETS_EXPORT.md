@@ -474,18 +474,64 @@ lewat cron atau Task Scheduler Linux).
   lewat DB client apa pun). Batasnya ada di `GRANT`, bukan di alat ini — karena
   itu batasi ke lima tabel di 11.1.
 
-## 12. Menjalankan pengawas di cloud (Northflank, gratis)
+## 12. Menjalankan pengawas tanpa komputer siapa pun menyala
 
 Tujuan bagian ini: permintaan client tetap dilayani tanpa **komputer mana pun
-milik pengelola menyala**. Yang berjalan terus adalah pengawas di cloud, dan
-konfigurasinya diisi lewat variabel lingkungan — bukan berkas.
+milik pengelola menyala**, dan tanpa kartu kredit.
 
-### 12.1 Apa yang perlu disiapkan
+Urutannya penting. Hampir semua platform yang menjalankan proses **selalu
+nyala** gratis kini meminta metode pembayaran: Northflank (Sandbox gratis tapi
+kartu wajib), Koyeb (sejak Februari 2026 kartu + otorisasi $29), Fly.io, Oracle
+Cloud, Google Cloud, AWS. Yang benar-benar tidak meminta kartu justru platform
+**terjadwal**, dan pengawas ini memang hanya perlu dipanggil berkala — ia hanya
+*keluar* menghubungi Google dan Aiven, tidak pernah menerima permintaan dari
+luar. Karena itu jalur utamanya sekarang GitHub Actions (12.1), dan jalur
+kontainer dengan proses menunggu tetap didokumentasikan di 12.2 sebagai pilihan
+kalau nanti Anda sudah siap memasang kartu.
 
-- Akun [Northflank](https://northflank.com/) yang terhubung ke GitHub.
-- Repo ini di GitHub. **Tidak ada folder yang disalin manual**: Northflank
-  membangun image langsung dari repo, memakai `Dockerfile` di akarnya — itulah
-  gunanya repo ini dipisah dari repo POS, yang dibangun hanyalah alat ekspor.
+### 12.1 GitHub Actions: gratis, tanpa kartu, tanpa layanan baru
+
+Dua berkas sudah disertakan di `.github/workflows/`:
+
+| Berkas | Jadwal | Tugasnya |
+| --- | --- | --- |
+| `refresh-sheets.yml` | tiap 5 menit | memanggil `--if-requested` — melayani centangan di tab Kontrol |
+| `keepalive.yml` | tgl 1 dan 15 | satu commit kosong, supaya GitHub tidak mematikan jadwalnya |
+
+Yang perlu dilakukan sekali saja:
+
+1. Buka repo di GitHub → **Settings** → **Secrets and variables** → **Actions**
+   → **New repository secret**, lalu isi ketiganya:
+
+   | Nama | Isi |
+   | --- | --- |
+   | `DATABASE_URL` | koneksi PostgreSQL, boleh pengguna read-only |
+   | `GOOGLE_SPREADSHEET_ID` | ID atau link spreadsheet tujuan |
+   | `GOOGLE_SERVICE_ACCOUNT_JSON` | seluruh isi `service-account.json`, ditempel apa adanya |
+
+   Isi berkas kunci bisa dimasukkan ke clipboard tanpa tampil di layar:
+   `Get-Content ".secrets\service-account.json" -Raw | Set-Clipboard` lalu tempel.
+   Sesudahnya, bersihkan clipboard dengan menyalin teks lain.
+2. Buka tab **Actions** → pilih **Ekspor ke Google Sheets** → **Run workflow**
+   untuk mencobanya sekarang tanpa menunggu jadwal. Log yang benar berisi
+   `Tidak ada permintaan baru di tab Kontrol.` beserta nama database dan
+   spreadsheet — sama seperti mode sekali-jalan di komputer sendiri.
+3. Centang `Kontrol!B3` dari mana saja, lalu tunggu satu putaran jadwal. Kolom
+   status, waktu, dan ringkasan terisi seperti biasa.
+
+### 12.2 Jalur kontainer (butuh kartu): proses yang menunggu terus
+
+Kalau Anda memilih memasang kartu, `Dockerfile` di akar repo ini bisa dibangun di
+host kontainer mana pun. Yang berjalan di sana adalah `--watch`, bukan
+`--if-requested`, sehingga permintaan dilayani dalam hitungan detik dan bukan
+menit.
+
+Yang perlu disiapkan:
+
+- Akun host yang terhubung ke GitHub.
+- Repo ini di GitHub. **Tidak ada folder yang disalin manual**: host membangun
+  image langsung dari repo, memakai `Dockerfile` di akarnya — itulah gunanya
+  repo ini dipisah dari repo POS, yang dibangun hanyalah alat ekspor.
 - Perubahan terakhir (Dockerfile, mode `--if-requested`, dukungan variabel
   lingkungan) harus sudah ter-push ke branch yang dipilih, karena yang dibangun
   adalah isi repo — bukan folder di komputer.
@@ -493,7 +539,7 @@ konfigurasinya diisi lewat variabel lingkungan — bukan berkas.
   sekarang sudah memuat `psycopg` dan `python-dotenv` sekaligus, jadi host cukup
   memasang berkas itu.
 
-### 12.2 Langkah membuat service
+### 12.3 Langkah membuat service di Northflank
 
 1. Masuk Northflank, buat project baru (mis. `pos-ekspor`).
 2. **Create service** → sumber **GitHub** → pilih repo ini dan branch `main`.
@@ -532,37 +578,44 @@ konfigurasinya diisi lewat variabel lingkungan — bukan berkas.
    biarkan daftar itu **kosong**. Kalau Aiven menolak koneksi dari host ini,
    permintaannya gagal dan pesannya muncul di baris *Status*.
 
-### 12.3 Kalau ingin lebih hemat lagi: cron, bukan proses menunggu
+### 12.4 Kalau ingin lebih hemat lagi: cron, bukan proses menunggu
 
-Free tier Northflank menyediakan **2 cron job**. Untuk memakainya, ubah
-perintahnya menjadi `--if-requested` dan atur jadwalnya (mis. tiap 5 menit).
+Host terjadwal mana pun bisa memakai mode sekali-jalan: ubah perintahnya menjadi
+`--if-requested` dan atur jadwalnya (mis. tiap 5 menit).
 
 Bedanya dengan pengawas: prosesnya tidak menunggu, hanya bangun saat jadwalnya
 tiba. Kalau kotaknya belum dicentang, skrip keluar tanpa menyentuh Google Sheets;
 kalau dicentang, ekspor berjalan. Permintaan client dilayani dengan jeda sampai
 satu interval, bukan di bawah satu menit.
 
-Mode yang sama dipakai host terjadwal lain (Cloud Run + Cloud Scheduler, GitHub
-Actions, cron di VPS):
-
 ```bash
 python tools/export_to_google_sheets.py --if-requested
 ```
 
-### 12.4 Catatan gratis dan batasnya
+Mode inilah yang dipakai GitHub Actions di 12.1; host terjadwal lain seperti
+Cloud Run + Cloud Scheduler atau cron di VPS memakainya dengan cara yang sama.
 
-- Tier **Sandbox** Northflank menyebut komputernya selalu nyala (tidak tidur)
-  dengan 2 service + 2 cron job gratis. Kalau nanti butuh service lain (mis. API
-  POS produksi), hitungannya terpisah.
-- Hal yang mudah berubah — apakah kartu kredit wajib saat mendaftar, jeda
-  minimum cron, dan kuota gratisnya sendiri — periksa di halaman mereka saat
-  mendaftar. Bagian ini mencatat cara yang berhasil, bukan janji platform.
-- Paketnya **portabel**: image yang sama bisa dijalankan di VPS mana pun dengan
-  `docker run`, atau tanpa kontainer cukup
-  `python tools/export_to_google_sheets.py --watch` plus `systemd`. Berpindah host
-  tidak mengubah kode.
+### 12.5 Batas yang perlu disadari
 
-### 12.5 Keamanan
+- **Jeda GitHub Actions 5-15 menit, bukan 60 detik.** Cron GitHub tidak menerima
+  jadwal lebih rapat dari lima menit, dan saat servernya sibuk jadwalnya bisa
+  terlambat. Untuk sebuah tombol "minta data terbaru" itu biasanya tidak masalah;
+  kalau client butuh kesegaran detik, jalur kontainer di 12.2 atau komputer yang
+  menyala terus adalah jawabannya.
+- **Jadwal mati kalau repo 60 hari tanpa commit.** GitHub mematikan workflow
+  terjadwal secara diam-diam di repo publik yang menganggur; itu yang dijaga
+  `keepalive.yml`. Kalau ternyata commit bot tidak dihitung sebagai aktivitas,
+  GitHub akan mengirim email dan tombol *Enable workflow* bisa diklik sekali lagi.
+- **Menit gratis Actions tidak terbatas hanya selama repo ini publik.** Kalau repo
+  dijadikan privat, jatahnya 2.000 menit/bulan — jadwal tiap 5 menit akan
+  menghabiskannya, jadi ubah `cron` di `refresh-sheets.yml` menjadi tiap 30 menit
+  (jatahnya jadi sekitar 480 menit sebulan).
+- Paketnya **portabel**: kalau nanti berpindah host, yang berubah hanya cara
+  ia dijalankan. Image yang sama bisa dipakai `docker run` di VPS mana pun, atau
+  tanpa kontainer cukup `python tools/export_to_google_sheets.py --watch` plus
+  `systemd`. Kode dan kredensialnya tidak berubah.
+
+### 12.6 Keamanan
 
 - `GOOGLE_SERVICE_ACCOUNT_JSON` adalah **kredensial penulis** untuk setiap
   spreadsheet yang dibagikan ke service account itu. Simpan sebagai secret di

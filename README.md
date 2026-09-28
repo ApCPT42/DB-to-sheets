@@ -22,8 +22,10 @@ hanya proses kecil ini; POS tetap berjalan seperti sekarang.
 | `tools/export_to_google_sheets.py` | Seluruh logikanya: baca database → tulis spreadsheet |
 | `tools/requirements-export.txt` | Semua dependensinya (`gspread`, `google-auth`, `psycopg`, `python-dotenv`) |
 | `Export ke Google Sheets.bat` | Peluncur Windows: menu 1 ekspor, 2 uji, 3 periksa, 4 pengawas |
-| `GOOGLE_SHEETS_EXPORT.md` | Panduan lengkap: penyiapan Google, tombol client, mode client, deploy cloud |
-| `Dockerfile`, `.dockerignore` | Untuk host nonstop (Northflank, VPS, Cloud Run) |
+| `GOOGLE_SHEETS_EXPORT.md` | Panduan lengkap: penyiapan Google, tombol client, mode client, menjalankan di cloud |
+| `.github/workflows/refresh-sheets.yml` | Pengawas terjadwal di GitHub Actions — melayani tombol Kontrol tanpa kartu kredit |
+| `.github/workflows/keepalive.yml` | Dua commit kosong sebulan, supaya GitHub tidak mematikan jadwalnya |
+| `Dockerfile`, `.dockerignore` | Untuk host yang memakai proses menunggu terus (VPS, Cloud Run, PaaS) |
 | `.env`, `.secrets/` | Konfigurasi dan kredensial — **tidak pernah masuk git** |
 
 ## Mulai dari nol di mesin baru
@@ -59,8 +61,16 @@ nomor nota harian yang tidak dibaca kode mana pun — juga dilewatkan sejak
    `venv\Scripts\python.exe tools\export_to_google_sheets.py`
 2. **Pengawas tombol** — menu **4** membiarkan jendela terbuka dan memantau
    kotak centang di tab `Kontrol`; client cukup mencentangnya di spreadsheet.
-3. **Terjadwal / cloud** — `--if-requested` memeriksa kotak itu satu kali lalu
-   keluar, cocok untuk cron, Cloud Run + Scheduler, atau kontainer.
+3. **Terjadwal di GitHub Actions** — cara yang berjalan tanpa komputer siapa pun
+   menyala dan **tanpa kartu kredit**. Workflow-nya sudah ada di repo ini; yang
+   perlu diisi hanya tiga rahasia di Settings → Secrets and variables → Actions,
+   lalu client mencentang seperti biasa. Jeda pelayanan 5–15 menit.
+
+Hampir semua platform yang menjalankan proses selalu-nyala gratis (Northflank,
+Koyeb, Fly.io, Oracle, Google Cloud, AWS) meminta metode pembayaran, jadi jalur
+GitHub Actions inilah yang dipakai. Pengawas ini hanya *keluar* menghubungi
+Google dan Aiven, jadi tidak perlu menerima kunjungan dari luar — dan itu yang
+membuat pola terjadwal cukup.
 
 Dua cara masuk Google yang didukung: `--auth service-account` (bawaan; mesin
 pengelola memakai berkas kunci JSON) dan `--auth oauth` (client masuk dengan akun
